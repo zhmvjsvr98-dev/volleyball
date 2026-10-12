@@ -68,7 +68,24 @@ function validateEvent(event, validTeamIds) {
     return allowedOutcomes[event.playKind].includes(event.outcome);
   }
   if (event.type === "timeout") return true;
-  if (event.type === "court-change") return Number.isInteger(event.totalPoints) && event.totalPoints >= 0 && event.totalPoints <= 198;
+  if (event.type === "sto") return true;
+  if (event.type === "court-change") {
+    return Number.isInteger(event.totalPoints) && event.totalPoints >= 0 && event.totalPoints <= 198
+      && (event.reason === undefined || ["points", "set-end"].includes(event.reason))
+      && (event.setNumber === undefined || Number.isInteger(event.setNumber) && event.setNumber >= 1 && event.setNumber <= 5)
+      && (event.triggerScore === undefined || Number.isInteger(event.triggerScore) && event.triggerScore >= 0 && event.triggerScore <= 99);
+  }
+  if (event.type === "challenge") {
+    return ["net-touch", "block-touch", "antenna", "ball-in-out", "foot-fault", "other"].includes(event.challengeType)
+      && ["success", "failed"].includes(event.result)
+      && isText(event.note || "", 120);
+  }
+  if (event.type === "rally-play") {
+    return ["serve", "reception", "set", "attack", "backAttack", "block", "error", "other"].includes(event.playKind)
+      && ["success", "point", "error", "touch", "effective", "excellent", "good", "other"].includes(event.outcome)
+      && (event.playerId === null || isText(event.playerId, 80))
+      && isText(event.note || "", 120);
+  }
   if (event.type === "substitution") {
     return isText(event.playerOut, 3) && isText(event.playerIn, 3);
   }
@@ -144,7 +161,7 @@ export function validateMatch(match) {
       if (lineup.length > 9 || new Set(assigned).size !== assigned.length || assigned.some((id) => !playerIds.includes(id))) return false;
     }
     for (const event of set.events) {
-      if (event.type === "play" && event.playerId && !playerIdsByTeam.get(event.teamId).has(event.playerId)) return false;
+      if (["play", "rally-play"].includes(event.type) && event.playerId && !playerIdsByTeam.get(event.teamId).has(event.playerId)) return false;
       if (event.type !== "score" || event.delta < 0) continue;
       const scoringPlayers = playerIdsByTeam.get(event.teamId);
       const opponentPlayers = new Set([...playerIdsByTeam.entries()]

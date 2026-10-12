@@ -5,6 +5,15 @@ export function getSetTarget(match, setNumber) {
     ?? (setNumber === match.rules.bestOf ? match.rules.finalTarget : match.rules.regularTarget);
 }
 
+export function getDecidingSetCourtChangePoint(match, setNumber) {
+  if (setNumber !== match.rules.bestOf) return 0;
+  if (match.rules.category === "小学生" && match.rules.bestOf === 3) return 8;
+  const target = getSetTarget(match, setNumber);
+  if (target === 25) return 13;
+  if (target === 21) return 8;
+  return Math.ceil(target / 2);
+}
+
 export function getScore(set, teamId) {
   return set.events.reduce((score, event) => {
     if (event.type === "score" && event.teamId === teamId) return score + event.delta;
@@ -92,7 +101,34 @@ export function getEventDescription(match, event) {
     return `${teamName} +1 得点 (${detail})`;
   }
   if (event.type === "timeout") return `${teamName} タイムアウト`;
-  if (event.type === "court-change") return `コートチェンジ（合計 ${event.totalPoints} 点）`;
+  if (event.type === "sto") return `${teamName} STO（セーフティタイムアウト・タイムアウト回数には含めない）`;
+  if (event.type === "court-change") {
+    return event.reason === "set-end"
+      ? `第${event.setNumber || ""}セット終了後のコートチェンジ`
+      : `コートチェンジ（第${event.setNumber || ""}セット ${event.triggerScore || event.totalPoints}点）`;
+  }
+  if (event.type === "challenge") {
+    const challenges = {
+      "net-touch": "ネットタッチ", "block-touch": "ブロックタッチ",
+      antenna: "アンテナ接触", "ball-in-out": "イン / アウト",
+      "foot-fault": "フットフォルト", other: "その他",
+    };
+    return `${teamName} チャレンジ: ${challenges[event.challengeType] || "その他"} / ${event.result === "success" ? "成功" : "失敗"}${event.note ? ` / ${event.note}` : ""}`;
+  }
+  if (event.type === "rally-play") {
+    const player = team?.players.find((item) => item.id === event.playerId);
+    const kinds = {
+      serve: "サーブ", reception: "サーブレシーブ", set: "トス",
+      attack: "アタック", backAttack: "バックアタック", block: "ブロック",
+      error: "ミス", other: "その他",
+    };
+    const outcomes = {
+      success: "成功・継続", point: "得点", error: "失点・ミス",
+      touch: "タッチ・継続", effective: "効果あり", excellent: "レシーブ優",
+      good: "レシーブ良", other: "その他",
+    };
+    return `${teamName} ${player ? `#${player.number} ${player.name} ` : ""}${kinds[event.playKind] || "プレー"}: ${outcomes[event.outcome] || ""}${event.note ? ` / ${event.note}` : ""}`.trim();
+  }
   if (event.type === "substitution") return `${teamName} 選手交代 ${event.playerOut} → ${event.playerIn}`;
   if (event.type === "sanction") {
     const labels = { warning: "警告", penalty: "ペナルティ", expulsion: "退場", disqualification: "失格" };

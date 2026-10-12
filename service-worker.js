@@ -1,4 +1,4 @@
-const CACHE_NAME = "jva-score-static-v13";
+const CACHE_NAME = "jva-score-static-v15";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -8,7 +8,6 @@ const APP_FILES = [
   "./storage.js",
   "./components.js",
   "./manifest.webmanifest",
-  "./icons/volleyball.svg",
 ];
 
 self.addEventListener("install", (event) => {

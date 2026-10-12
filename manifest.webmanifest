@@ -7,13 +7,5 @@
   "scope": "./",
   "display": "standalone",
   "background_color": "#07142d",
-  "theme_color": "#102e5b",
-  "icons": [
-    {
-      "src": "./icons/volleyball.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ]
+  "theme_color": "#102e5b"
 }

@@ -306,6 +306,19 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
 .rotation-side { min-width: 0; padding: .65rem; border: 1px solid #263650; border-radius: 8px; background: #0a1326; }
 .rotation-side h2 { margin: 0 0 .55rem; color: #b9d5f5; font-size: .82rem; text-align: center; }
 .rotation-court { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; }
+.rotation-court.six-player-court { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(62px, 1fr)); }
+.rotation-side.team-a .six-player-court [data-position="0"] { grid-column: 1; grid-row: 3; }
+.rotation-side.team-a .six-player-court [data-position="1"] { grid-column: 2; grid-row: 3; }
+.rotation-side.team-a .six-player-court [data-position="2"] { grid-column: 2; grid-row: 2; }
+.rotation-side.team-a .six-player-court [data-position="3"] { grid-column: 2; grid-row: 1; }
+.rotation-side.team-a .six-player-court [data-position="4"] { grid-column: 1; grid-row: 1; }
+.rotation-side.team-a .six-player-court [data-position="5"] { grid-column: 1; grid-row: 2; }
+.rotation-side.team-b .six-player-court [data-position="0"] { grid-column: 2; grid-row: 1; }
+.rotation-side.team-b .six-player-court [data-position="1"] { grid-column: 1; grid-row: 1; }
+.rotation-side.team-b .six-player-court [data-position="2"] { grid-column: 1; grid-row: 2; }
+.rotation-side.team-b .six-player-court [data-position="3"] { grid-column: 1; grid-row: 3; }
+.rotation-side.team-b .six-player-court [data-position="4"] { grid-column: 2; grid-row: 3; }
+.rotation-side.team-b .six-player-court [data-position="5"] { grid-column: 2; grid-row: 2; }
 .rotation-slot { display: flex; min-width: 0; min-height: 62px; flex-direction: column; align-items: center; justify-content: center; gap: .12rem; padding: .25rem; border: 1px solid #29446a; border-radius: 6px; background: #102447; text-align: center; }
 .rotation-slot.server { border: 2px solid #3adcc1; }
 .rotation-slot strong, .rotation-slot span { display: block; }
@@ -388,6 +401,21 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
 .score-sheet-table th, .score-sheet-table td { padding: .25rem; border: 1px solid #333; color: #111; font-size: .68rem; text-align: left; }
 .score-sheet-table th { background: #e8edf4; }
 .score-sheet-footer { display: grid; grid-template-columns: repeat(4, 1fr); gap: .3rem; margin-top: .6rem; font-size: .7rem; }
+.score-sheet-team-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.score-sheet-team-column { min-width: 0; padding: .5rem; border: 1px solid var(--team-accent); border-radius: 6px; }
+.score-sheet-team-column h3 { margin: 0 0 .35rem; padding: .25rem .4rem; border-left: 4px solid var(--team-accent); background: var(--team-tint); color: #14213a; font-size: .82rem; }
+.print-document { display: none; }
+.print-document.print-document-active { display: block; }
+.manual-document { max-width: 900px; margin: 0 auto; padding: clamp(1rem, 4vw, 2rem); color: var(--ink); }
+.manual-document h2 { margin-top: 0; }
+.manual-document h3 { margin: 1.2rem 0 .25rem; color: var(--brand); }
+.manual-document p { margin: .25rem 0; line-height: 1.8; }
+.stats-team-section { color: #17243b; background: #f7f9fc; }
+.stats-team-section h2 { color: #17243b; }
+.stats-category h3 { color: #17243b; }
+.stats-table th { color: #17243b; background: #e7edf5; font-weight: 850; }
+.stats-table td { color: #17243b; background: #fff; }
+.stats-table .stats-team-total td { background: #eaf1fa; }
 .home-page {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: .75rem;
   overflow-y: auto;
@@ -453,6 +481,7 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
 .stats-note { margin: .55rem 0 0; color: var(--muted); font-size: .7rem; }
 .score-sheet-section-title { margin: .8rem 0 .35rem; padding: .45rem .6rem; border-left: 4px solid #146bd1; background: #e9f2ff; color: #15355a; font-size: 1rem; }
 .footer-note { color: #8495ae; }
+.match-timer { position: sticky; z-index: 5; top: .25rem; margin: .3rem 0 .75rem; padding: .7rem 1rem; border: 2px solid #f2a93b; border-radius: 9px; background: #fff6db; color: #603d00; font-size: 1.1rem; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 820px) {
   .app-layout { padding: 0; gap: 0; }
@@ -589,6 +618,8 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   .app-page[hidden][data-page-panel="output"] { display: block !important; }
   .output-panel { display: none !important; }
   .print-only { display: block !important; color: #111; background: #fff; }
+  #printable-score-sheet .print-document { display: none !important; }
+  #printable-score-sheet .print-document.print-document-active { display: block !important; }
   .score-sheet-title h1 { font-size: 15pt; }
   .score-sheet-block { margin-top: 3mm; }
   .score-sheet-block h2 { padding: 1mm 2mm; font-size: 8pt; }
@@ -603,6 +634,16 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   .stats-category { break-inside: avoid; }
   .stats-table { font-size: 7pt; }
   .stats-table th, .stats-table td { padding: 1mm 1.5mm; }
+  .score-sheet-team-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm; }
+  .score-sheet-team-column { border: 1px solid #777; padding: 2mm; }
+  .score-sheet-team-column h3 { color: #111; background: #e8edf4; font-size: 8pt; }
+  .stats-team-section { border-color: #777; border-left: 3px solid var(--team-accent); background: #fff; }
+  .stats-team-section h2, .stats-category h3 { color: #111; }
+  .stats-category h3 { background: #e8edf4; }
+  .stats-table th, .stats-table td { color: #111; border-color: #777; background: #fff; }
+  .stats-table .stats-team-total td { background: #e8edf4; }
+  .manual-document { max-width: none; padding: 0; border: 0; box-shadow: none; }
+  .manual-document h3 { color: #111; }
   .page-heading { display: flex !important; }
   .content-panel, .panel { break-inside: avoid; border: 1px solid #777; background: #fff; color: #111; }
   .data-table th, .data-table td { border-color: #777; color: #111; background: #fff; }
