@@ -1,4 +1,4 @@
-const CACHE_NAME = "jva-score-static-v7";
+const CACHE_NAME = "jva-score-static-v9";
 const APP_FILES = [
   "./",
   "./index.html",

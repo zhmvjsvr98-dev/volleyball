@@ -38,6 +38,7 @@
         <button class="nav-item active" data-page="home"><span>⌂</span>ホーム</button>
         <button class="nav-item" data-page="setup"><span>▤</span>大会管理・試合設定</button>
         <button class="nav-item" data-page="members"><span>♙</span>メンバー登録</button>
+        <button class="nav-item" data-page="rotation"><span>▦</span>ローテーション設定</button>
         <button class="nav-item" data-page="staff"><span>♧</span>審判登録</button>
         <button class="nav-item" data-page="confirm"><span>☑</span>開始確認</button>
         <button class="nav-item" data-page="match"><span>▣</span>試合画面</button>
@@ -46,7 +47,7 @@
         <button class="nav-item" data-page="sets"><span>▧</span>セット履歴</button>
         <button class="nav-item" data-page="result"><span>♜</span>試合結果</button>
         <button class="nav-item" data-page="verify"><span>☑</span>スコアシート確認</button>
-        <button class="nav-item" data-page="output"><span>⇩</span>データ出力 (PDF)</button>
+        <button class="nav-item" data-page="output"><span>⇩</span>記録票PDF</button>
       </nav>
       <div class="sidebar-footer"><span class="footer-ball">●</span><br>つなぐ、支える。<br>バレーボールの未来へ</div>
     </aside>
@@ -71,7 +72,7 @@
           <span class="eyebrow">JVA OFFICIAL ELECTRONIC SCORING SYSTEM</span>
           <h1>JVA Volleyball Official Electronic Score Sheet</h1>
           <p>バレーボール電子記録システム</p>
-          <button class="button button-primary hero-start" data-go="setup" type="button">▶　記録を開始</button>
+          <button id="start-record" class="button button-primary hero-start" type="button">▶　記録を開始</button>
           <div class="court-decoration" aria-hidden="true"><span>P4</span><span>P2</span><span>P5</span><span>P6</span><span>P1</span></div>
         </div>
         <p class="home-caption">大会情報とチームを登録して、記録を始めましょう。</p>
@@ -150,16 +151,46 @@
       </section>
 
       <section class="app-page" data-page-panel="members" hidden>
-        <div class="page-heading"><div><span class="eyebrow">02. TEAM ROSTER</span><h1>メンバー登録</h1><p>両チームの登録選手とキャプテンを管理します。</p></div><button class="button button-primary" data-go="staff" type="button">次へ: 03 審判登録　›</button></div>
+        <div class="page-heading"><div><span class="eyebrow">02. TEAM ROSTER</span><h1>メンバー登録</h1><p>両チームの登録選手とキャプテンを管理します。</p></div><button class="button button-primary" data-go="rotation" type="button">次へ: 03 ローテーション設定　›</button></div>
         <div class="roster-summary panel"><strong id="roster-count">チームA: 0名　/　チームB: 0名</strong><span>背番号の重複は登録できません</span></div>
         <section class="teams-grid">
           <article id="team-a-card" class="panel team-card"></article>
           <article id="team-b-card" class="panel team-card"></article>
         </section>
+        <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">TEAM & ROSTER HISTORY</span><h2>チーム・メンバー履歴</h2></div></div>
+          <p class="notice">登録したチーム名・選手・キャプテン・サーブ順を端末に保存し、次の対戦設定に呼び出せます。登録内容の変更履歴は別の履歴として残ります。</p>
+          <div class="team-history-grid">
+            <div class="team-history-card">
+              <h3>チームA</h3>
+              <label class="field">保存済みチーム履歴<select id="team-history-a"></select></label>
+              <div class="output-actions"><button id="save-team-history-a" class="button button-secondary" type="button">現在のチームAを履歴に保存</button><button id="load-team-history-a" class="button button-primary" type="button">履歴から読み込む</button></div>
+            </div>
+            <div class="team-history-card">
+              <h3>チームB</h3>
+              <label class="field">保存済みチーム履歴<select id="team-history-b"></select></label>
+              <div class="output-actions"><button id="save-team-history-b" class="button button-secondary" type="button">現在のチームBを履歴に保存</button><button id="load-team-history-b" class="button button-primary" type="button">履歴から読み込む</button></div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="rotation" hidden>
+        <div class="page-heading"><div><span class="eyebrow">03. ROTATION & SERVICE ORDER</span><h1>ローテーション・サーブ順設定</h1><p>試合開始前に両チームの選手位置と第1サーバーを登録します。コート中央のネットをはさんで表示します。</p></div><button class="button button-primary" data-go="staff" type="button">次へ: 04 審判登録　›</button></div>
+        <section class="panel content-panel">
+          <div class="rotation-controls">
+            <label class="field">第1セットの最初のサーブ
+              <select id="prestart-initial-server"></select>
+            </label>
+            <span id="prestart-server-indicator" class="server-indicator">第1サーバー: 未設定</span>
+          </div>
+          <p id="rotation-mode-note" class="notice"></p>
+          <div id="prestart-rotation-layout" class="rotation-court-layout"></div>
+        </section>
       </section>
 
       <section class="app-page" data-page-panel="staff" hidden>
-        <div class="page-heading"><div><span class="eyebrow">03. OFFICIALS</span><h1>審判登録</h1><p>役員の氏名と所属都道府県または国名を登録します。</p></div><button class="button button-primary" data-go="confirm" type="button">次へ: 04 開始確認　›</button></div>
+        <div class="page-heading"><div><span class="eyebrow">04. OFFICIALS</span><h1>審判登録</h1><p>役員の氏名と所属都道府県または国名を登録します。</p></div><button class="button button-primary" data-go="confirm" type="button">次へ: 05 開始確認　›</button></div>
         <section class="panel content-panel">
           <div class="officials-grid">
             <label class="field">ファーストレフェリー 氏名<input id="official-name-firstReferee" maxlength="60" placeholder="氏名"></label>
@@ -183,15 +214,16 @@
       </section>
 
       <section class="app-page" data-page-panel="confirm" hidden>
-        <div class="page-heading"><div><span class="eyebrow">04. MATCH CONFIRMATION</span><h1>試合開始確認</h1><p>登録内容を確認して、記録画面へ進みます。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">05. MATCH CONFIRMATION</span><h1>試合開始確認</h1><p>大会情報、チーム、審判、ローテーションを確認して試合を始めます。</p></div></div>
         <section class="panel content-panel">
           <div id="confirmation-summary" class="confirmation-grid"></div>
-          <div class="confirm-actions"><button class="button button-secondary" data-go="setup" type="button">設定を修正</button><button class="button button-primary" data-go="match" type="button">試合画面へ進む　▶</button></div>
+          <div id="confirmation-rotation" class="confirmation-rotation"></div>
+          <div class="confirm-actions"><button class="button button-secondary" data-go="rotation" type="button">ローテーションを修正</button><button id="start-match" class="button button-primary" type="button">試合を開始する　▶</button></div>
         </section>
       </section>
 
       <section class="app-page" data-page-panel="match" hidden>
-        <div class="page-heading"><div><span class="eyebrow">05. LIVE MATCH</span><h1>試合画面</h1><p id="live-match-meta">リアルタイムスコア記録</p></div><div id="match-state" class="state-badge">準備中</div></div>
+        <div class="page-heading"><div><span class="eyebrow">06. LIVE MATCH</span><h1>試合画面</h1><p id="live-match-meta">リアルタイムスコア記録</p></div><div id="match-state" class="state-badge">準備中</div></div>
         <section class="panel scoring-panel">
           <div class="rotation-controls">
             <label class="field">このセットの最初のサーブ
@@ -199,10 +231,7 @@
             </label>
             <span id="server-indicator" class="server-indicator">サーバー: 未設定</span>
           </div>
-          <div class="rotation-panels">
-            <section class="rotation-panel"><h2 id="rotation-team-a-name">チームA ローテーション</h2><div id="rotation-team-a" class="rotation-court"></div></section>
-            <section class="rotation-panel"><h2 id="rotation-team-b-name">チームB ローテーション</h2><div id="rotation-team-b" class="rotation-court"></div></section>
-          </div>
+          <div id="match-rotation-layout" class="rotation-court-layout"></div>
           <div id="scoreboard" class="scoreboard"></div>
           <div class="court-change-row">
             <span id="court-change-status" class="court-change-status">コートチェンジ条件: 未設定</span>
@@ -214,7 +243,7 @@
       </section>
 
       <section class="app-page" data-page-panel="events" hidden>
-        <div class="page-heading"><div><span class="eyebrow">06. EVENT MANAGEMENT</span><h1>イベント管理</h1><p>タイムアウト、メンバーチェンジ、警告・退場を記録します。</p></div><button class="button button-secondary" data-go="match" type="button">‹ 試合画面へ戻る</button></div>
+        <div class="page-heading"><div><span class="eyebrow">08. EVENT MANAGEMENT</span><h1>イベント管理</h1><p>タイムアウト、メンバーチェンジ、警告・退場を記録します。</p></div><button class="button button-secondary" data-go="match" type="button">‹ 試合画面へ戻る</button></div>
         <section class="panel content-panel">
           <div class="event-tools">
             <section class="event-tool"><h3>タイムアウト</h3><div id="timeout-actions" class="action-pair"></div></section>
@@ -239,33 +268,37 @@
       </section>
 
       <section class="app-page" data-page-panel="scoresheet" hidden>
-        <div class="page-heading"><div><span class="eyebrow">07. SCORE SHEET</span><h1>スコアシート</h1><p>セットごとの得点と登録情報を確認します。</p></div><button class="button button-primary" data-go="output" type="button">記録票を出力　›</button></div>
+        <div class="page-heading"><div><span class="eyebrow">09. SCORE SHEET</span><h1>スコアシート</h1><p>セットごとの得点と登録情報を確認します。</p></div><button class="button button-primary" data-go="output" type="button">記録票を出力　›</button></div>
         <section class="panel content-panel"><div id="score-sheet-summary"></div></section>
       </section>
 
       <section class="app-page" data-page-panel="sets" hidden>
-        <div class="page-heading"><div><span class="eyebrow">08. SET HISTORY</span><h1>セット履歴</h1><p>完了したセットの得点と勝者を表示します。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">10. SET HISTORY</span><h1>セット履歴</h1><p>完了したセットの得点と勝者を表示します。</p></div></div>
         <section class="panel content-panel"><div id="set-history-table"></div></section>
       </section>
 
       <section class="app-page" data-page-panel="result" hidden>
-        <div class="page-heading"><div><span class="eyebrow">09. MATCH RESULT</span><h1>試合結果</h1><p>最終結果とセットカウントを確認します。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">11. MATCH RESULT</span><h1>試合結果</h1><p>最終結果とセットカウントを確認します。</p></div></div>
         <section class="panel content-panel"><div id="match-result-summary"></div></section>
       </section>
 
       <section class="app-page" data-page-panel="verify" hidden>
-        <div class="page-heading"><div><span class="eyebrow">10. SCORE SHEET CHECK</span><h1>スコアシート確認</h1><p>入力内容の不足や未完了項目を確認します。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">12. SCORE SHEET CHECK</span><h1>スコアシート確認</h1><p>入力内容の不足や未完了項目を確認します。</p></div></div>
         <section class="panel content-panel"><ul id="verification-list" class="verification-list"></ul></section>
       </section>
 
       <section class="app-page" data-page-panel="output" hidden>
-        <div class="page-heading"><div><span class="eyebrow">11. DATA OUTPUT</span><h1>記録票出力</h1><p>印刷またはPDFとして保存します。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">13. DATA OUTPUT</span><h1>記録票出力</h1><p>印刷またはPDFとして保存します。</p></div></div>
         <section class="panel content-panel output-panel">
-          <h2>印刷 / PDF保存</h2><p>ブラウザーの印刷画面で「PDFに保存」を選択できます。</p>
-          <button class="button button-primary" data-print type="button">印刷プレビューを開く</button>
+          <h2>記録票の確認・印刷 / PDF保存</h2><p>画面内のプレビューで内容を確認し、印刷画面で「PDFに保存」を選択できます。記録票は試合設定に連動して更新されます。</p>
+          <button class="button button-primary" data-print type="button">記録票を印刷 / PDF保存</button>
           <hr>
           <h2>バックアップ</h2><p>試合データはこの端末に保存されます。試合後にJSON形式でバックアップしてください。</p>
           <div class="output-actions"><button id="export-match" class="button button-secondary" type="button">JSONを書き出す</button><button id="import-match" class="button button-secondary" type="button">JSONを読み込む</button><input id="import-file" class="visually-hidden" type="file" accept="application/json,.json"></div>
+        </section>
+        <section class="panel content-panel score-sheet-preview-panel">
+          <h2>記録票プレビュー</h2>
+          <div id="score-sheet-preview" class="score-sheet-preview"></div>
         </section>
         <section id="printable-score-sheet" class="print-only"></section>
       </section>

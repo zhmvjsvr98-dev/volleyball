@@ -1,5 +1,6 @@
 const STORAGE_KEY = "jva-electronic-score-sheet";
 const MAX_MATCHES = 100;
+const MAX_TEAM_PROFILES = 100;
 const MAX_STORAGE_BYTES = 2_000_000;
 const MAX_EVENTS_PER_SET = 2_000;
 const OFFICIAL_ROLES = ["firstReferee", "secondReferee", "scorer", "assistantScorer", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"];
@@ -21,6 +22,22 @@ function validatePlayer(player) {
     && player.name.trim().length > 0
     && player.name.length <= 60
     && typeof player.isCaptain === "boolean";
+}
+
+function validateTeamProfile(profile) {
+  if (!isPlainObject(profile) || !isText(profile.id, 80) || !isText(profile.name, 60)
+    || !profile.name.trim() || !isText(profile.savedAt, 40)
+    || !Array.isArray(profile.players) || profile.players.length > 42
+    || !profile.players.every(validatePlayer)
+    || !Array.isArray(profile.rotationLineup) || profile.rotationLineup.length > 9) return false;
+  const playerIds = profile.players.map((player) => player.id);
+  const numbers = profile.players.map((player) => player.number);
+  const lineup = profile.rotationLineup.filter(Boolean);
+  return new Set(playerIds).size === playerIds.length
+    && new Set(numbers).size === numbers.length
+    && profile.players.filter((player) => player.isCaptain).length <= 1
+    && new Set(lineup).size === lineup.length
+    && lineup.every((id) => playerIds.includes(id));
 }
 
 function validateEvent(event, validTeamIds) {
@@ -206,18 +223,24 @@ function upgradeMatch(match) {
 function validateStore(value) {
   return isPlainObject(value) && value.version === 1
     && Array.isArray(value.matches) && value.matches.length <= MAX_MATCHES
-    && value.matches.every(validateMatch);
+    && value.matches.every(validateMatch)
+    && Array.isArray(value.teamProfiles) && value.teamProfiles.length <= MAX_TEAM_PROFILES
+    && value.teamProfiles.every(validateTeamProfile);
 }
 
 export function readStore() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { version: 1, matches: [] };
+    if (!raw) return { version: 1, matches: [], teamProfiles: [] };
     const parsed = JSON.parse(raw);
     if (!isPlainObject(parsed) || parsed.version !== 1 || !Array.isArray(parsed.matches)) {
       throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
     }
-    const upgraded = { ...parsed, matches: parsed.matches.map(upgradeMatch) };
+    const upgraded = {
+      ...parsed,
+      matches: parsed.matches.map(upgradeMatch),
+      teamProfiles: Array.isArray(parsed.teamProfiles) ? parsed.teamProfiles : [],
+    };
     if (!validateStore(upgraded)) throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
     return upgraded;
   } catch (error) {
@@ -292,8 +315,12 @@ export function createEmptyMatch() {
   };
 }
 
-export function buildStore(matches) {
+export function buildStore(matches, teamProfiles = []) {
   const unique = new Map();
   for (const match of matches) unique.set(match.id, match);
-  return { version: 1, matches: [...unique.values()].slice(0, MAX_MATCHES) };
+  return {
+    version: 1,
+    matches: [...unique.values()].slice(0, MAX_MATCHES),
+    teamProfiles: teamProfiles.slice(0, MAX_TEAM_PROFILES),
+  };
 }

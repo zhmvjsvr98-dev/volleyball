@@ -1,6 +1,6 @@
 import { renderTeamCard, makeEventRow } from "./components.js";
 import {
-  canScore, getCurrentLineup, getEventDescription, getScore, getSetResult, getSetTarget, getSetWins, getServingState, isMatchComplete,
+  canScore, getCurrentLineup, getEventDescription, getScore, getSetResult, getSetTarget, getSetWins, getServingState, isMatchComplete, usesCourtRotation,
 } from "./score.js";
 import { buildStore, createEmptyMatch, createId, readStore, validateImport, writeStore } from "./storage.js";
 
@@ -79,6 +79,11 @@ function currentSet() {
   return currentMatch.sets.at(-1);
 }
 
+function matchHasStarted() {
+  return Boolean(currentMatch.matchInfo.startedAt)
+    || currentMatch.sets.some((set) => set.events.length > 0);
+}
+
 function updateBestOf(selectedBestOf) {
   const previousBestOf = currentMatch.rules.bestOf;
   if (selectedBestOf > previousBestOf) {
@@ -106,7 +111,7 @@ function persistNow() {
   currentMatch.updatedAt = new Date().toISOString();
   // 現在の試合を履歴の先頭へ置き、IDが同じ古いコピーは置き換えます。
   store.matches = [currentMatch, ...store.matches.filter((match) => match.id !== currentMatch.id)];
-  store = buildStore(store.matches);
+  store = buildStore(store.matches, store.teamProfiles);
   try {
     writeStore(store);
     dirty = false;
@@ -148,7 +153,9 @@ function updateFromForm() {
       currentMatch.rules[key] = input.value;
     }
   }
-  currentMatch.rules.rotationEnabled = byId("rotation-enabled").checked;
+  currentMatch.rules.rotationEnabled = currentMatch.rules.matchProfile === "six"
+    && currentMatch.rules.category !== "小学生"
+    && byId("rotation-enabled").checked;
   currentMatch.rules.setTargets = setTargetFields.map((id) => Number(byId(id).value));
   const invalidTarget = currentMatch.rules.setTargets.findIndex((target) => !Number.isInteger(target) || target < 1 || target > 99);
   if (invalidTarget >= 0) {
@@ -171,7 +178,7 @@ function updateFromForm() {
 function populateForm() {
   for (const [key, id] of Object.entries(infoFields)) byId(id).value = currentMatch.matchInfo[key];
   for (const [key, id] of Object.entries(ruleFields)) byId(id).value = String(currentMatch.rules[key]);
-  byId("rotation-enabled").checked = currentMatch.rules.rotationEnabled;
+  byId("rotation-enabled").checked = usesCourtRotation(currentMatch);
   setTargetFields.forEach((id, index) => {
     byId(id).value = String(currentMatch.rules.setTargets[index] ?? (index === currentMatch.rules.bestOf - 1 ? currentMatch.rules.finalTarget : currentMatch.rules.regularTarget));
     byId(id).disabled = index >= currentMatch.rules.bestOf;
@@ -180,9 +187,9 @@ function populateForm() {
     byId(`official-name-${role}`).value = currentMatch.matchInfo.officials[role].name;
     byId(`official-area-${role}`).value = currentMatch.matchInfo.officials[role].area;
   });
-  const hasEvents = currentMatch.sets.some((set) => set.events.length > 0);
-  Object.values(ruleFields).forEach((id) => { byId(id).disabled = hasEvents; });
-  byId("rotation-enabled").disabled = hasEvents;
+  const locked = matchHasStarted();
+  Object.values(ruleFields).forEach((id) => { byId(id).disabled = locked; });
+  byId("rotation-enabled").disabled = locked || currentMatch.rules.matchProfile === "nine" || currentMatch.rules.category === "小学生";
   byId("team-name-setup-a").value = currentMatch.teams[0].name;
   byId("team-name-setup-b").value = currentMatch.teams[1].name;
 }
@@ -205,8 +212,72 @@ function renderHistory() {
   elements.history.value = selectedId || "";
 }
 
+function renderTeamProfiles() {
+  for (const id of ["team-history-a", "team-history-b"]) {
+    const select = byId(id);
+    const previous = select.value;
+    select.replaceChildren();
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = store.teamProfiles.length ? "保存履歴を選択" : "履歴はありません";
+    select.append(placeholder);
+    store.teamProfiles.forEach((profile) => {
+      const option = document.createElement("option");
+      option.value = profile.id;
+      option.textContent = `${profile.name} — ${new Date(profile.savedAt).toLocaleString("ja-JP")} (${profile.players.length}名)`;
+      select.append(option);
+    });
+    if (store.teamProfiles.some((profile) => profile.id === previous)) select.value = previous;
+    select.disabled = matchHasStarted() || store.teamProfiles.length === 0;
+  }
+  for (const id of ["save-team-history-a", "save-team-history-b", "load-team-history-a", "load-team-history-b"]) {
+    byId(id).disabled = matchHasStarted() || (id.startsWith("load") && store.teamProfiles.length === 0);
+  }
+}
+
+function saveTeamProfile(teamIndex) {
+  if (matchHasStarted()) return showError("試合開始後はチーム履歴を変更できません。");
+  const team = currentMatch.teams[teamIndex];
+  const name = team.name.trim();
+  if (!name || !team.players.length) {
+    return showError("チーム名と選手を登録してから履歴に保存してください。");
+  }
+  store.teamProfiles.unshift({
+    id: createId(),
+    name,
+    savedAt: new Date().toISOString(),
+    players: structuredClone(team.players),
+    rotationLineup: [...team.rotationLineup],
+  });
+  store = buildStore(store.matches, store.teamProfiles);
+  scheduleSave(true);
+  renderTeamProfiles();
+  clearError();
+}
+
+function loadTeamProfile(teamIndex) {
+  if (matchHasStarted()) return showError("試合開始後はチーム履歴を読み込めません。");
+  const selectedProfileId = byId(teamIndex === 0 ? "team-history-a" : "team-history-b").value;
+  const profile = store.teamProfiles.find((item) => item.id === selectedProfileId);
+  if (!profile) return showError("読み込むチーム履歴を選択してください。");
+  const team = currentMatch.teams[teamIndex];
+  const ids = new Map();
+  team.players = profile.players.map((player) => {
+    const id = createId();
+    ids.set(player.id, id);
+    return { ...player, id };
+  });
+  team.name = profile.name;
+  team.rotationLineup = profile.rotationLineup.map((id) => ids.get(id) || "");
+  currentMatch.sets.forEach((set) => { set.startingLineups[team.id] = [...team.rotationLineup]; });
+  byId(teamIndex === 0 ? "team-name-setup-a" : "team-name-setup-b").value = team.name;
+  render();
+  scheduleSave(true);
+  clearError();
+}
+
 function renderTeams() {
-  const rosterLocked = currentMatch.sets.some((set) => set.events.length > 0);
+  const rosterLocked = matchHasStarted();
   currentMatch.teams.forEach((team, index) => renderTeamCard(elements.teamCards[index], team, index, currentMatch.rules.rosterLimit, rosterLocked));
   for (const id of ["sub-team", "sanction-team"]) {
     const select = byId(id);
@@ -220,6 +291,7 @@ function renderTeams() {
     });
     if (currentMatch.teams.some((team) => team.id === previous)) select.value = previous;
   }
+  renderTeamProfiles();
 }
 
 function renderScoreboard() {
@@ -345,39 +417,26 @@ function renderCourtChange() {
   byId("record-court-change").disabled = !canScore(currentMatch);
 }
 
-function renderRotation() {
-  const set = currentSet();
-  const serveSelect = byId("initial-server");
-  serveSelect.replaceChildren();
-  currentMatch.teams.forEach((team) => {
-    const option = document.createElement("option");
-    option.value = team.id;
-    option.textContent = team.name;
-    serveSelect.append(option);
-  });
-  serveSelect.value = set.initialServiceTeamId || currentMatch.teams[0].id;
-  serveSelect.disabled = set.events.length > 0;
-  const { server, rotations } = getServingState(currentMatch, set);
-  const servingTeam = getTeam(server);
-  const servingLineup = getCurrentLineup(currentMatch, set, server);
-  const serverPlayer = servingTeam?.players.find((player) => player.id === servingLineup.at(-1));
-  byId("server-indicator").textContent = `サーバー: ${servingTeam?.name || "未設定"}${serverPlayer ? ` #${serverPlayer.number} ${serverPlayer.name}` : ""}`;
-  byId("rotation-team-a-name").textContent = `${currentMatch.teams[0].name} ローテーション (${rotations[currentMatch.teams[0].id] || 0}回転)`;
-  byId("rotation-team-b-name").textContent = `${currentMatch.teams[1].name} ローテーション (${rotations[currentMatch.teams[1].id] || 0}回転)`;
-  const count = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
-  currentMatch.teams.forEach((team, teamIndex) => {
-    const container = byId(teamIndex === 0 ? "rotation-team-a" : "rotation-team-b");
-    container.replaceChildren();
-    const lineup = getCurrentLineup(currentMatch, set, team.id);
-    const turns = (rotations[team.id] || 0) % count;
-    lineup.forEach((playerId, positionIndex) => {
-      const slot = document.createElement("label");
-      slot.className = `rotation-slot${server === team.id && positionIndex === count - 1 ? " server" : ""}`;
-      const position = document.createElement("strong");
-      position.textContent = currentMatch.rules.matchProfile === "nine" ? `位置 ${["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ"][positionIndex]}` : `位置 ${positionIndex + 1}`;
-      const selected = team.players.find((player) => player.id === playerId);
-      const person = document.createElement("span");
-      person.textContent = selected ? `#${selected.number} ${selected.name}` : "未設定";
+function renderRotationView(containerId, set, editable) {
+  const container = byId(containerId);
+  container.replaceChildren();
+  const courtRotation = usesCourtRotation(currentMatch);
+  const servingState = getServingState(currentMatch, set);
+  const slots = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
+  const serviceIndex = (team) => (servingState.serviceTurns[team.id] - 1 + slots) % slots;
+  const positionLabels = currentMatch.rules.matchProfile === "nine"
+    ? ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ"]
+    : ["1", "2", "3", "4", "5", "6"];
+  const makeSlot = (team, playerId, positionIndex, isServer, side, serviceOrder = false) => {
+    const slot = document.createElement(editable ? "label" : "div");
+    slot.className = `rotation-slot${isServer ? " server" : ""}${serviceOrder ? " service-order-slot" : ""}`;
+    const position = document.createElement("strong");
+    position.textContent = serviceOrder ? `サーブ順 ${positionLabels[positionIndex]}` : `位置 ${positionLabels[positionIndex]}`;
+    const selected = team.players.find((player) => player.id === playerId);
+    const person = document.createElement("span");
+    person.textContent = selected ? `#${selected.number} ${selected.name}` : "未設定";
+    slot.append(position, person);
+    if (editable) {
       const select = document.createElement("select");
       select.dataset.rotationTeam = team.id;
       select.dataset.currentPosition = String(positionIndex);
@@ -393,12 +452,89 @@ function renderRotation() {
         select.append(option);
       });
       select.value = playerId;
-      slot.append(position, person, select);
-      container.append(slot);
-    });
+      slot.append(select);
+    }
+    return slot;
+  };
+
+  const makeSide = (teamIndex) => {
+    const team = currentMatch.teams[teamIndex];
+    const home = teamIndex === 0;
+    const section = document.createElement("section");
+    section.className = `rotation-side ${home ? "side-home" : "side-away"}`;
+    const heading = document.createElement("h2");
+    const turns = servingState.rotations[team.id] || 0;
+    heading.textContent = `${team.name || `チーム ${home ? "A" : "B"}`} — ${courtRotation ? `ローテーション ${turns}回` : "サーブ順"}`;
+    section.append(heading);
+
+    const lineup = getCurrentLineup(currentMatch, set, team.id);
+    if (courtRotation) {
+      const grid = document.createElement("div");
+      grid.className = `rotation-court ${slots === 9 ? "nine-player-court" : "six-player-court"}`;
+      const order = home
+        ? [4, 5, 0, 3, 2, 1]
+        : [1, 2, 3, 0, 5, 4];
+      order.forEach((positionIndex) => {
+        const cell = makeSlot(team, lineup[positionIndex] || "", positionIndex,
+          servingState.server === team.id && positionIndex === 0, home ? "home" : "away");
+        grid.append(cell);
+      });
+      section.append(grid);
+    } else {
+      const order = document.createElement("ol");
+      order.className = "service-order-list";
+      lineup.forEach((playerId, positionIndex) => {
+        order.append(makeSlot(team, playerId, positionIndex,
+          servingState.server === team.id && positionIndex === serviceIndex(team), home ? "home" : "away", true));
+      });
+      section.append(order);
+    }
+    return section;
+  };
+
+  const net = document.createElement("div");
+  net.className = "court-net";
+  net.setAttribute("aria-label", "ネット");
+  net.textContent = "NET";
+  container.append(makeSide(0), net, makeSide(1));
+  return servingState;
+}
+
+function populateServingSelect(select, set, editable) {
+  select.replaceChildren();
+  currentMatch.teams.forEach((team) => {
+    const option = document.createElement("option");
+    option.value = team.id;
+    option.textContent = team.name || "チーム";
+    select.append(option);
   });
-  document.querySelector(".rotation-panels").hidden = !currentMatch.rules.rotationEnabled;
-  document.querySelector(".rotation-controls").hidden = !currentMatch.rules.rotationEnabled;
+  select.value = set.initialServiceTeamId || currentMatch.teams[0].id;
+  select.disabled = !editable;
+}
+
+function renderRotation() {
+  const firstSet = currentMatch.sets[0];
+  const prestartSelect = byId("prestart-initial-server");
+  populateServingSelect(prestartSelect, firstSet, !matchHasStarted());
+  const prestartState = renderRotationView("prestart-rotation-layout", firstSet, !matchHasStarted());
+  const startServer = getTeam(prestartState.server);
+  const startLineup = getCurrentLineup(currentMatch, firstSet, prestartState.server);
+  const startSlot = usesCourtRotation(currentMatch) ? 0 : Math.max(0, prestartState.serviceTurns[prestartState.server] - 1) % startLineup.length;
+  const startPlayer = startServer?.players.find((player) => player.id === startLineup[startSlot]);
+  byId("prestart-server-indicator").textContent = `第1サーバー: ${startServer?.name || "未設定"}${startPlayer ? ` #${startPlayer.number} ${startPlayer.name}` : ""}`;
+
+  const liveSet = currentSet();
+  populateServingSelect(byId("initial-server"), liveSet, !matchHasStarted() && liveSet.events.length === 0);
+  const liveState = renderRotationView("match-rotation-layout", liveSet, false);
+  const servingTeam = getTeam(liveState.server);
+  const liveLineup = getCurrentLineup(currentMatch, liveSet, liveState.server);
+  const liveSlot = usesCourtRotation(currentMatch) ? 0 : Math.max(0, liveState.serviceTurns[liveState.server] - 1) % liveLineup.length;
+  const serverPlayer = servingTeam?.players.find((player) => player.id === liveLineup[liveSlot]);
+  byId("server-indicator").textContent = `サーバー: ${servingTeam?.name || "未設定"}${serverPlayer ? ` #${serverPlayer.number} ${serverPlayer.name}` : ""}`;
+
+  byId("rotation-mode-note").textContent = usesCourtRotation(currentMatch)
+    ? "選手を各位置に割り当ててください。ネットが画面中央にあり、チームAは左側、チームBは右側です。第1サーバーは位置1です。"
+    : "この競技形式ではコート上のローテーションは行わず、登録したサーブ順を表示します。順番に選手を割り当ててください。";
 }
 
 function fillPlayerSelect(select, players, selectedValue = "") {
@@ -469,8 +605,8 @@ function addDetailedScore() {
 function render() {
   if (!currentMatch) return;
   populateForm();
-  const hasEvents = currentMatch.sets.some((set) => set.events.length > 0);
-  Object.values(ruleFields).forEach((id) => { byId(id).disabled = hasEvents; });
+  const locked = matchHasStarted();
+  Object.values(ruleFields).forEach((id) => { byId(id).disabled = locked; });
   renderTeams();
   renderScoreboard();
   renderSetStrip();
@@ -604,6 +740,35 @@ function renderPrintableScoreSheet() {
   footer.className = "score-sheet-footer";
   footer.textContent = `タイムアウト上限: ${currentMatch.rules.timeoutLimit}回 / 交代上限: ${currentMatch.rules.substitutionLimit}回 / セット勝利点差: ${currentMatch.rules.winBy}点`;
   root.append(footer);
+  const preview = byId("score-sheet-preview");
+  if (preview) {
+    const page = document.createElement("div");
+    page.className = "score-sheet-preview-page";
+    [...root.children].forEach((child) => page.append(child.cloneNode(true)));
+    preview.replaceChildren(page);
+  }
+}
+
+function renderConfirmationRotation() {
+  const summary = byId("confirmation-rotation");
+  summary.replaceChildren();
+  const heading = document.createElement("h2");
+  heading.textContent = "第1セットのコート配置・サーブ順";
+  const layout = document.createElement("div");
+  layout.id = "confirmation-rotation-layout";
+  layout.className = "rotation-court-layout";
+  summary.append(heading, layout);
+  const state = renderRotationView("confirmation-rotation-layout", currentMatch.sets[0], false);
+  const server = getTeam(state.server);
+  const lineup = getCurrentLineup(currentMatch, currentMatch.sets[0], state.server);
+  const slotIndex = usesCourtRotation(currentMatch)
+    ? 0
+    : (state.serviceTurns[state.server] - 1 + lineup.length) % lineup.length;
+  const player = server?.players.find((item) => item.id === lineup[slotIndex]);
+  const detail = document.createElement("p");
+  detail.className = "notice";
+  detail.textContent = `最初のサーブ: ${server?.name || "未設定"}${player ? ` #${player.number} ${player.name}` : "（選手未割当）"}`;
+  summary.append(detail);
 }
 
 function renderPageSummaries() {
@@ -631,6 +796,7 @@ function renderPageSummaries() {
     ["スコアラー", info.officials.scorer.name],
   ]) appendSummaryRow(confirmation, label, value);
   for (const team of currentMatch.teams) appendSummaryRow(confirmation, team.name, `${team.players.length}名登録`);
+  renderConfirmationRotation();
 
   const setRows = currentMatch.sets.map((set) => {
     const result = getSetResult(currentMatch, set);
@@ -827,7 +993,7 @@ function importMatchFile(file) {
     const duplicate = store.matches.some((match) => match.id === validatedMatch.id);
     if (duplicate && !confirm("同じIDの試合データがすでにあります。読み込んだデータで置き換えますか？")) return;
     store.matches = [validatedMatch, ...store.matches.filter((match) => match.id !== validatedMatch.id)];
-    store = buildStore(store.matches);
+    store = buildStore(store.matches, store.teamProfiles);
     currentMatch = structuredClone(validatedMatch);
     storageRecoveryRequired = false;
     render();
@@ -836,6 +1002,11 @@ function importMatchFile(file) {
 }
 
 function bindEvents() {
+  byId("start-record").addEventListener("click", () => {
+    clearError();
+    navigateTo("setup");
+  });
+
   [...Object.values(infoFields), ...Object.values(ruleFields)].filter((id) => id !== "best-of").forEach((id) => {
     const input = byId(id);
     input.addEventListener("change", updateFromForm);
@@ -858,6 +1029,23 @@ function bindEvents() {
     }
     updateFromForm();
     render();
+  });
+
+  byId("category").addEventListener("change", () => {
+    updateFromForm();
+    render();
+  });
+
+  byId("save-team-history-a").addEventListener("click", () => saveTeamProfile(0));
+  byId("save-team-history-b").addEventListener("click", () => saveTeamProfile(1));
+  byId("load-team-history-a").addEventListener("click", () => loadTeamProfile(0));
+  byId("load-team-history-b").addEventListener("click", () => loadTeamProfile(1));
+  byId("prestart-initial-server").addEventListener("change", () => {
+    if (matchHasStarted()) return;
+    currentMatch.sets[0].initialServiceTeamId = byId("prestart-initial-server").value;
+    renderRotation();
+    renderPageSummaries();
+    scheduleSave(true);
   });
 
   byId("best-of").addEventListener("change", () => {
@@ -1024,7 +1212,7 @@ function bindEvents() {
   });
   byId("cancel-score-detail").addEventListener("click", () => elements.scoreDialog.close());
   byId("initial-server").addEventListener("change", () => {
-    if (currentSet().events.length) return;
+    if (matchHasStarted()) return;
     currentSet().initialServiceTeamId = byId("initial-server").value;
     renderRotation();
     scheduleSave(true);
@@ -1046,10 +1234,31 @@ function bindEvents() {
     }
     team.rotationLineup[openingPosition] = select.value;
     currentSet().startingLineups[team.id] = [...team.rotationLineup];
+    currentMatch.sets[0].startingLineups[team.id] = [...team.rotationLineup];
     clearError();
     renderRotation();
     renderPageSummaries();
     scheduleSave(true);
+  });
+  byId("start-match").addEventListener("click", () => {
+    if (matchHasStarted()) return navigateTo("match");
+    const requiredSlots = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
+    const incompleteTeam = currentMatch.teams.find((team) =>
+      team.players.length < requiredSlots
+      || team.rotationLineup.slice(0, requiredSlots).filter(Boolean).length !== requiredSlots);
+    if (incompleteTeam) {
+      showError(`${incompleteTeam.name}の選手と${requiredSlots}人分のローテーション/サーブ順を登録してください。`);
+      navigateTo("rotation");
+      return;
+    }
+    const startedAt = new Date().toISOString();
+    currentMatch.sets[0].startingLineups = Object.fromEntries(currentMatch.teams.map((team) => [
+      team.id, [...team.rotationLineup],
+    ]));
+    currentMatch.matchInfo.startedAt = startedAt;
+    render();
+    scheduleSave(true);
+    navigateTo("match");
   });
   byId("sidebar-toggle").addEventListener("click", toggleSidebar);
   byId("device-preset").addEventListener("change", () => applyDevicePreset(byId("device-preset").value, true));
@@ -1126,8 +1335,12 @@ function initializeDeviceSettings() {
 }
 
 function navigateTo(page, updateAddress = true) {
-  const validPages = new Set(["home", "setup", "members", "staff", "confirm", "match", "events", "scoresheet", "sets", "result", "verify", "output"]);
-  const selected = validPages.has(page) ? page : "home";
+  const validPages = new Set(["home", "setup", "members", "rotation", "staff", "confirm", "match", "events", "scoresheet", "sets", "result", "verify", "output"]);
+  let selected = validPages.has(page) ? page : "home";
+  if (selected === "match" && !matchHasStarted()) {
+    showError("試合画面へ進む前にローテーション設定と開始確認を完了し、「試合を開始する」を押してください。");
+    selected = "confirm";
+  }
   document.querySelectorAll("[data-page-panel]").forEach((panel) => {
     const active = panel.dataset.pagePanel === selected;
     panel.hidden = !active;
@@ -1144,7 +1357,7 @@ function navigateTo(page, updateAddress = true) {
   if (updateAddress && location.hash !== `#${selected}`) history.pushState(null, "", `#${selected}`);
   const activeNavigation = document.querySelector(`.nav-item[data-page="${selected}"]`);
   if (activeNavigation) document.title = `${activeNavigation.textContent.trim()} | JVA Volleyball Official Electronic Score Sheet`;
-  if (selected === "confirm" || selected === "scoresheet" || selected === "sets" || selected === "result" || selected === "verify") {
+  if (selected === "confirm" || selected === "scoresheet" || selected === "sets" || selected === "result" || selected === "verify" || selected === "output") {
     renderPageSummaries();
   }
 }
@@ -1156,7 +1369,7 @@ function initialize() {
     } catch (error) {
       // Keep the UI available for backup import instead of overwriting unreadable local data.
       storageRecoveryRequired = true;
-      store = { version: 1, matches: [] };
+      store = { version: 1, matches: [], teamProfiles: [] };
       showError(error.message);
     }
     currentMatch = store.matches[0] ? structuredClone(store.matches[0]) : createEmptyMatch();

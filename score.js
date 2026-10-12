@@ -38,25 +38,35 @@ export function canScore(match) {
   return Boolean(current) && !isMatchComplete(match) && !getSetResult(match, current);
 }
 
+export function usesCourtRotation(match) {
+  return match.rules.matchProfile === "six"
+    && match.rules.category !== "小学生"
+    && match.rules.rotationEnabled;
+}
+
 export function getServingState(match, set) {
   let server = set.initialServiceTeamId || match.teams[0].id;
   const rotations = Object.fromEntries(match.teams.map((team) => [team.id, 0]));
+  const serviceTurns = Object.fromEntries(match.teams.map((team) => [team.id, team.id === server ? 1 : 0]));
   const correctedEvents = new Set(set.events
     .filter((event) => event.type === "score" && event.delta < 0 && event.correctionOf)
     .map((event) => event.correctionOf));
   for (const event of set.events) {
     if (event.type !== "score" || event.delta < 0 || correctedEvents.has(event.id)) continue;
-    if (server !== event.teamId) rotations[event.teamId] += 1;
+    if (server !== event.teamId) {
+      rotations[event.teamId] += 1;
+      serviceTurns[event.teamId] += 1;
+    }
     server = event.teamId;
   }
-  return { server, rotations };
+  return { server, rotations, serviceTurns };
 }
 
 export function getCurrentLineup(match, set, teamId) {
   const team = match.teams.find((item) => item.id === teamId);
   const lineup = set.startingLineups?.[teamId]?.length ? set.startingLineups[teamId] : team?.rotationLineup || [];
   const { rotations } = getServingState(match, set);
-  if (!match.rules.rotationEnabled) {
+  if (!usesCourtRotation(match)) {
     return Array.from({ length: match.rules.matchProfile === "nine" ? 9 : 6 }, (_, index) => lineup[index] || "");
   }
   const count = match.rules.matchProfile === "nine" ? 9 : 6;
