@@ -73,9 +73,76 @@
           <h1>JVA Volleyball Official Electronic Score Sheet</h1>
           <p>バレーボール電子記録システム</p>
           <button id="start-record" class="button button-primary hero-start" type="button">▶　記録を開始</button>
+          <p class="home-caption">大会情報とチームを登録して、記録を始めましょう。</p>
           <div class="court-decoration" aria-hidden="true"><span>P4</span><span>P2</span><span>P5</span><span>P6</span><span>P1</span></div>
         </div>
-        <p class="home-caption">大会情報とチームを登録して、記録を始めましょう。</p>
+        <section class="home-guide" aria-labelledby="home-guide-title">
+          <div class="home-guide-heading">
+            <div>
+              <span class="eyebrow">QUICK USER GUIDE</span>
+              <h2 id="home-guide-title">取扱説明書</h2>
+              <p>試合前の準備から記録票の保存まで、次の順番で操作してください。</p>
+            </div>
+            <button class="button button-primary" data-go="setup" type="button">試合設定を始める　›</button>
+          </div>
+
+          <ol class="home-guide-steps">
+            <li>
+              <span class="guide-step-number">01</span>
+              <div><h3>大会・試合を設定</h3><p>大会名、日付、会場、試合形式、カテゴリー、セット数と目標点を入力します。チーム名もこの画面で設定できます。</p></div>
+              <button class="guide-link" data-go="setup" type="button">試合設定を開く</button>
+            </li>
+            <li>
+              <span class="guide-step-number">02</span>
+              <div><h3>選手を登録</h3><p>両チームの背番号と氏名を登録し、キャプテンを設定します。チーム・選手履歴を保存すると、次の対戦で再利用できます。</p></div>
+              <button class="guide-link" data-go="members" type="button">メンバー登録を開く</button>
+            </li>
+            <li>
+              <span class="guide-step-number">03</span>
+              <div><h3>ローテーション・サーブ順を設定</h3><p>試合開始前に各選手を割り当て、第1セットの最初のサーブチームを選びます。9人制と小学生カテゴリではサーブ順を設定します。</p></div>
+              <button class="guide-link" data-go="rotation" type="button">ローテーション設定を開く</button>
+            </li>
+            <li>
+              <span class="guide-step-number">04</span>
+              <div><h3>審判を登録して開始確認</h3><p>審判・記録員の氏名と都道府県または国名を入力します。開始確認で大会情報、選手、配置、最初のサーバーを確認し、「試合を開始する」を押します。</p></div>
+              <button class="guide-link" data-go="staff" type="button">審判登録を開く</button>
+            </li>
+            <li>
+              <span class="guide-step-number">05</span>
+              <div><h3>試合・プレーを記録</h3><p>得点チームの「+1」を押してプレー種別と選手を記録します。得点にならないアタック、ブロック、サーブ、レシーブの状態はイベント管理から追加します。</p></div>
+              <button class="guide-link" data-go="confirm" type="button">開始確認を開く</button>
+            </li>
+          </ol>
+
+          <div class="home-guide-details">
+            <section class="guide-detail">
+              <h3>試合中にできること</h3>
+              <ul>
+                <li>チームAは青、チームBはオレンジで表示されます。</li>
+                <li>得点時のプレーに加え、イベント管理からアタック、バックアタック、ブロック、サーブ、レシーブごとの結果を記録できます。</li>
+                <li>サーブの「効果」はノータッチエースを含み、相手の返球が大きく崩れてセッター以外が2本目を処理した場合に記録します。サービスエースは得点記録から効果数にも自動計上されるため、別に重ねて入力しません。レシーブの「優」は狙い通りのコンビネーションが使える返球、「良」はセッターが動いても攻撃につながる返球です。</li>
+                <li>イベント管理でタイムアウト、選手交代、警告・退場を記録します。</li>
+                <li>スコアシート、セット履歴、試合結果の各画面で進行状況を確認できます。</li>
+              </ul>
+            </section>
+            <section class="guide-detail">
+              <h3>保存・印刷・PDF</h3>
+              <ul>
+                <li>試合データはこの端末のブラウザーに自動保存されます。上部の「保存済み試合」から記録を切り替えられます。</li>
+                <li>記録票PDF画面でプレビューを確認し、「記録票を印刷 / PDF保存」から印刷画面を開き、「PDFに保存」を選びます。</li>
+                <li>記録票にはチームと選手ごとのプレー数値を掲載します。アタック決定率は得点÷打数、セット平均は得点÷出場セット数、サーブ効果率は（エース×100＋効果×25－失点×25）÷打数、レシーブ成功率は（優×100＋良×50）÷受数で自動計算します。</li>
+                <li>大切な記録は「データ出力」画面でJSON形式のバックアップも保存してください。</li>
+              </ul>
+              <button class="guide-link" data-go="output" type="button">記録票・データ出力を開く</button>
+            </section>
+            <section class="guide-detail guide-notice">
+              <h3>ご利用前にご確認ください</h3>
+              <p>試合データは端末間で同期されません。ブラウザーのデータ削除や端末故障に備えて、試合後にバックアップしてください。初回のアプリ読み込み後はオフライン利用できますが、初回アクセスと更新にはネットワークが必要です。</p>
+              <p>このアプリは記録支援ツールです。公式記録票の原本と同一の様式や、JVAによる認定を保証するものではありません。公式大会で使う前に、大会要項・競技規則と照合してください。</p>
+            </section>
+          </div>
+          <p class="home-guide-tip">画面左のメニューからいつでも各画面へ移動できます。ヘッダーでは表示端末のレイアウトとライト / ダークモードを切り替えられます。</p>
+        </section>
       </section>
 
       <section class="app-page" data-page-panel="setup" hidden>
@@ -243,9 +310,27 @@
       </section>
 
       <section class="app-page" data-page-panel="events" hidden>
-        <div class="page-heading"><div><span class="eyebrow">08. EVENT MANAGEMENT</span><h1>イベント管理</h1><p>タイムアウト、メンバーチェンジ、警告・退場を記録します。</p></div><button class="button button-secondary" data-go="match" type="button">‹ 試合画面へ戻る</button></div>
+        <div class="page-heading"><div><span class="eyebrow">08. EVENT MANAGEMENT</span><h1>イベント・プレー記録</h1><p>アタック等のプレー状態、タイムアウト、交代、警告・退場を記録します。</p></div><button class="button button-secondary" data-go="match" type="button">‹ 試合画面へ戻る</button></div>
         <section class="panel content-panel">
           <div class="event-tools">
+            <section class="event-tool play-entry-tool"><h3>プレー状態を記録</h3>
+              <p class="event-help">得点記録と別に、プレー1回ごとの状態を記録します。得点時に入力済みのプレーを重ねて登録しないでください。</p>
+              <p class="event-help">サーブの「効果」はノータッチエースを含み、相手の返球が大きく崩れてセッター以外が2本目を処理した場合に記録します。サービスエースは得点記録から効果数にも自動計上されるため、別に重ねて入力しません。レシーブの「優」は狙い通りのコンビネーションが使える返球、「良」はセッターが動いても攻撃につながる返球です。</p>
+              <div class="event-form play-entry-form">
+                <label class="field">プレーしたチーム<select id="play-team"></select></label>
+                <label class="field">選手<select id="play-player"></select></label>
+                <label class="field">プレー<select id="play-kind">
+                  <option value="attack">アタック</option>
+                  <option value="backAttack">バックアタック</option>
+                  <option value="block">ブロック</option>
+                  <option value="serve">サーブ</option>
+                  <option value="reception">サーブレシーブ</option>
+                </select></label>
+                <label class="field">結果<select id="play-outcome"></select></label>
+                <label class="field play-note-field">備考（任意）<input id="play-note" maxlength="120" placeholder="プレーの補足"></label>
+                <button id="record-play" class="button button-primary" type="button">プレーを記録</button>
+              </div>
+            </section>
             <section class="event-tool"><h3>タイムアウト</h3><div id="timeout-actions" class="action-pair"></div></section>
             <section class="event-tool"><h3>メンバーチェンジ</h3><div class="event-form">
               <label class="field">チーム<select id="sub-team"></select></label>
@@ -268,7 +353,7 @@
       </section>
 
       <section class="app-page" data-page-panel="scoresheet" hidden>
-        <div class="page-heading"><div><span class="eyebrow">09. SCORE SHEET</span><h1>スコアシート</h1><p>セットごとの得点と登録情報を確認します。</p></div><button class="button button-primary" data-go="output" type="button">記録票を出力　›</button></div>
+        <div class="page-heading"><div><span class="eyebrow">09. SCORE SHEET</span><h1>スコアシート</h1><p>セット得点、イベント、選手ごとのプレー状況を確認します。</p></div><button class="button button-primary" data-go="output" type="button">記録票を出力　›</button></div>
         <section class="panel content-panel"><div id="score-sheet-summary"></div></section>
       </section>
 
@@ -314,7 +399,7 @@
       <label class="field">得点につながったプレー
         <select id="score-play-type">
           <option value="serve">サービスエース</option><option value="attack">アタック</option>
-          <option value="block">ブロック</option><option value="opponent-error">相手のミス</option>
+          <option value="back-attack">バックアタック</option><option value="block">ブロック</option><option value="opponent-error">相手のミス</option>
           <option value="penalty">反則・ペナルティ</option><option value="other">その他</option>
         </select>
       </label>

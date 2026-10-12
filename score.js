@@ -80,7 +80,7 @@ export function getEventDescription(match, event) {
   const teamName = team?.name || "チーム";
   if (event.type === "score") {
     if (event.delta < 0) return `${teamName} 得点訂正 -1`;
-    const plays = { serve: "サービスエース", attack: "アタック", block: "ブロック", "opponent-error": "相手のミス", penalty: "反則・ペナルティ", other: "その他" };
+    const plays = { serve: "サービスエース", attack: "アタック", "back-attack": "バックアタック", block: "ブロック", "opponent-error": "相手のミス", penalty: "反則・ペナルティ", other: "その他" };
     const player = match.teams.flatMap((item) => item.players).find((item) => item.id === event.playerId);
     const faultPlayer = match.teams.flatMap((item) => item.players).find((item) => item.id === event.faultPlayerId);
     const detail = [
@@ -97,6 +97,15 @@ export function getEventDescription(match, event) {
   if (event.type === "sanction") {
     const labels = { warning: "警告", penalty: "ペナルティ", expulsion: "退場", disqualification: "失格" };
     return `${teamName} ${labels[event.sanctionType] || "処置"}（${event.player}）`;
+  }
+  if (event.type === "play") {
+    const player = team?.players.find((item) => item.id === event.playerId);
+    const kinds = { attack: "アタック", backAttack: "バックアタック", block: "ブロック", serve: "サーブ", reception: "サーブレシーブ" };
+    const outcomes = {
+      point: "得点", error: "失点", continued: "ラリー継続", touch: "タッチ / 継続",
+      effective: "効果あり", excellent: "成功（優）", good: "成功（良）", other: "その他 / 失敗",
+    };
+    return `${teamName} ${kinds[event.playKind] || "プレー"} ${player ? `#${player.number} ${player.name}` : ""} ${outcomes[event.outcome] || "記録"}${event.note ? ` / ${event.note}` : ""}`.trim();
   }
   return "記録";
 }

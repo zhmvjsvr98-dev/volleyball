@@ -53,6 +53,13 @@ const officialRoles = [
   ["lineJudge3", "ラインジャッジ3"],
   ["lineJudge4", "ラインジャッジ4"],
 ];
+const playOutcomeOptions = {
+  attack: [["error", "失点"], ["continued", "ラリー継続"]],
+  backAttack: [["error", "失点"], ["continued", "ラリー継続"]],
+  block: [["error", "ブロック失点"], ["touch", "タッチ / 継続"]],
+  serve: [["error", "サーブ失点"], ["effective", "効果あり"], ["continued", "ラリー継続"]],
+  reception: [["excellent", "成功（優）"], ["good", "成功（良）"], ["other", "その他 / 失敗"]],
+};
 let pendingScoreTeamId;
 
 let store;
@@ -278,8 +285,11 @@ function loadTeamProfile(teamIndex) {
 
 function renderTeams() {
   const rosterLocked = matchHasStarted();
-  currentMatch.teams.forEach((team, index) => renderTeamCard(elements.teamCards[index], team, index, currentMatch.rules.rosterLimit, rosterLocked));
-  for (const id of ["sub-team", "sanction-team"]) {
+  currentMatch.teams.forEach((team, index) => {
+    renderTeamCard(elements.teamCards[index], team, index, currentMatch.rules.rosterLimit, rosterLocked);
+    elements.teamCards[index].classList.add(index === 0 ? "team-a" : "team-b");
+  });
+  for (const id of ["sub-team", "sanction-team", "play-team"]) {
     const select = byId(id);
     const previous = select.value;
     select.replaceChildren();
@@ -291,6 +301,7 @@ function renderTeams() {
     });
     if (currentMatch.teams.some((team) => team.id === previous)) select.value = previous;
   }
+  renderPlayEntryForm();
   renderTeamProfiles();
 }
 
@@ -303,9 +314,12 @@ function renderScoreboard() {
   const target = getSetTarget(currentMatch, set.number);
   elements.scoreboard.replaceChildren();
 
-  const teamScore = (team, score) => {
+  const teamScore = (team, score, teamIndex) => {
     const card = document.createElement("div");
-    card.className = "score-team";
+    card.className = `score-team ${teamIndex === 0 ? "team-a" : "team-b"}`;
+    const teamLabel = document.createElement("span");
+    teamLabel.className = "score-team-label";
+    teamLabel.textContent = teamIndex === 0 ? "TEAM A" : "TEAM B";
     const name = document.createElement("span");
     name.className = "score-team-name";
     name.textContent = team.name || "チーム";
@@ -326,7 +340,7 @@ function renderScoreboard() {
       button.setAttribute("aria-label", `${team.name} ${change > 0 ? "に1点加点" : "から1点減点"}`);
       controls.append(button);
     }
-    card.append(name, number, controls);
+    card.append(teamLabel, name, number, controls);
     return card;
   };
 
@@ -339,7 +353,7 @@ function renderScoreboard() {
   const stateText = document.createElement("span");
   stateText.textContent = result ? "セット終了" : "試合中";
   middle.append(setTitle, targetText, stateText);
-  elements.scoreboard.append(teamScore(teamA, scoreA), middle, teamScore(teamB, scoreB));
+  elements.scoreboard.append(teamScore(teamA, scoreA, 0), middle, teamScore(teamB, scoreB, 1));
 
   const setWins = getSetWins(currentMatch);
   const winsNeeded = Math.floor(currentMatch.rules.bestOf / 2) + 1;
@@ -461,7 +475,7 @@ function renderRotationView(containerId, set, editable) {
     const team = currentMatch.teams[teamIndex];
     const home = teamIndex === 0;
     const section = document.createElement("section");
-    section.className = `rotation-side ${home ? "side-home" : "side-away"}`;
+    section.className = `rotation-side ${home ? "side-home team-a" : "side-away team-b"}`;
     const heading = document.createElement("h2");
     const turns = servingState.rotations[team.id] || 0;
     heading.textContent = `${team.name || `チーム ${home ? "A" : "B"}`} — ${courtRotation ? `ローテーション ${turns}回` : "サーブ順"}`;
@@ -552,6 +566,34 @@ function fillPlayerSelect(select, players, selectedValue = "") {
   select.value = selectedValue;
 }
 
+function renderPlayEntryForm() {
+  const teamSelect = byId("play-team");
+  if (!teamSelect) return;
+  const selectedTeamId = currentMatch.teams.some((team) => team.id === teamSelect.value)
+    ? teamSelect.value : currentMatch.teams[0].id;
+  teamSelect.value = selectedTeamId;
+  const team = getTeam(selectedTeamId);
+  const playerSelect = byId("play-player");
+  const selectedPlayerId = team.players.some((player) => player.id === playerSelect.value)
+    ? playerSelect.value : "";
+  fillPlayerSelect(playerSelect, team.players, selectedPlayerId);
+  playerSelect.required = true;
+  const kindSelect = byId("play-kind");
+  const outcomeSelect = byId("play-outcome");
+  const previousOutcome = outcomeSelect.value;
+  outcomeSelect.replaceChildren();
+  playOutcomeOptions[kindSelect.value].forEach(([value, label]) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    outcomeSelect.append(option);
+  });
+  if (playOutcomeOptions[kindSelect.value].some(([value]) => value === previousOutcome)) {
+    outcomeSelect.value = previousOutcome;
+  }
+  byId("record-play").disabled = !matchHasStarted() || !canScore(currentMatch);
+}
+
 function showScoreDialog(teamId) {
   if (!canScore(currentMatch)) return;
   pendingScoreTeamId = teamId;
@@ -574,7 +616,7 @@ function addDetailedScore() {
   const playType = byId("score-play-type").value;
   const playerId = byId("score-player").value || null;
   const faultPlayerId = byId("fault-player").value || null;
-  if (["serve", "attack", "block"].includes(playType) && team.players.length && !playerId) {
+  if (["serve", "attack", "back-attack", "block"].includes(playType) && team.players.length && !playerId) {
     byId("score-dialog-error").textContent = "この得点のプレーをした選手を選択してください。";
     byId("score-dialog-error").hidden = false;
     return;
@@ -590,6 +632,9 @@ function addDetailedScore() {
     teamId: team.id,
     delta: 1,
     playType,
+    ...(playerId && ["serve", "attack", "back-attack", "block"].includes(playType)
+      ? { statPlayKind: playType === "back-attack" ? "backAttack" : playType }
+      : {}),
     playerId: ["opponent-error", "penalty"].includes(playType) ? null : playerId,
     faultPlayerId,
     note: byId("score-note").value.trim().slice(0, 120),
@@ -599,6 +644,32 @@ function addDetailedScore() {
   elements.scoreDialog.close();
   byId("score-dialog-error").textContent = "";
   byId("score-dialog-error").hidden = true;
+  clearError();
+}
+
+function recordPlay() {
+  if (!matchHasStarted() || !canScore(currentMatch)) return;
+  const team = getTeam(byId("play-team").value);
+  const playerId = byId("play-player").value;
+  const playKind = byId("play-kind").value;
+  const outcome = byId("play-outcome").value;
+  if (!team || !team.players.some((player) => player.id === playerId)) {
+    showError("プレーをした選手を選択してください。");
+    return;
+  }
+  if (!playOutcomeOptions[playKind]?.some(([value]) => value === outcome)) {
+    showError("プレーの結果を選択してください。");
+    return;
+  }
+  addEvent({
+    type: "play",
+    teamId: team.id,
+    playerId,
+    playKind,
+    outcome,
+    note: byId("play-note").value.trim().slice(0, 120),
+  });
+  byId("play-note").value = "";
   clearError();
 }
 
@@ -664,6 +735,201 @@ function appendPrintSection(container, title, headers, rows) {
   container.append(section);
 }
 
+function emptyPlayStats() {
+  return {
+    attack: { attempts: 0, points: 0, errors: 0 },
+    backAttack: { attempts: 0, points: 0, errors: 0 },
+    block: { attempts: 0, points: 0 },
+    serve: { attempts: 0, points: 0, errors: 0, effective: 0 },
+    reception: { attempts: 0, excellent: 0, good: 0, other: 0 },
+  };
+}
+
+function recordPlayStat(stats, playKind, outcome) {
+  const category = stats[playKind];
+  if (!category) return;
+  category.attempts += 1;
+  if (outcome === "point") category.points += 1;
+  if (outcome === "error" && "errors" in category) category.errors += 1;
+  if (outcome === "effective" && "effective" in category) category.effective += 1;
+  if (outcome === "excellent" && "excellent" in category) category.excellent += 1;
+  if (outcome === "good" && "good" in category) category.good += 1;
+  if (outcome === "other" && "other" in category) category.other += 1;
+}
+
+function getPlayerSetAppearances(team) {
+  const playerSetsPlayed = new Map(team.players.map((player) => [player.id, 0]));
+  let teamSetsPlayed = 0;
+
+  for (const set of currentMatch.sets) {
+    if (!set.startedAt && set.events.length === 0) continue;
+    teamSetsPlayed += 1;
+
+    const appearedPlayers = new Set(set.startingLineups?.[team.id] || []);
+    for (const event of set.events) {
+      if (event.teamId !== team.id) continue;
+      if (["score", "play"].includes(event.type) && event.playerId) {
+        appearedPlayers.add(event.playerId);
+      }
+      if (event.type === "substitution") {
+        const playerIn = team.players.find((player) => player.number === event.playerIn);
+        if (playerIn) appearedPlayers.add(playerIn.id);
+      }
+    }
+
+    for (const playerId of appearedPlayers) {
+      if (playerSetsPlayed.has(playerId)) {
+        playerSetsPlayed.set(playerId, playerSetsPlayed.get(playerId) + 1);
+      }
+    }
+  }
+
+  return { teamSetsPlayed, playerSetsPlayed };
+}
+
+function getPerformanceStats(team) {
+  const total = emptyPlayStats();
+  const players = new Map(team.players.map((player) => [player.id, emptyPlayStats()]));
+  const { teamSetsPlayed, playerSetsPlayed } = getPlayerSetAppearances(team);
+  for (const set of currentMatch.sets) {
+    const correctedScores = new Set(set.events
+      .filter((event) => event.type === "score" && event.delta < 0 && event.correctionOf)
+      .map((event) => event.correctionOf));
+    for (const event of set.events) {
+      let playKind;
+      let outcome;
+      let playerId;
+      if (event.type === "score" && event.delta > 0 && event.teamId === team.id
+        && !correctedScores.has(event.id) && event.statPlayKind) {
+        playKind = event.statPlayKind;
+        outcome = "point";
+        playerId = event.playerId;
+      } else if (event.type === "play" && event.teamId === team.id) {
+        playKind = event.playKind;
+        outcome = event.outcome;
+        playerId = event.playerId;
+      } else {
+        continue;
+      }
+      recordPlayStat(total, playKind, outcome);
+      if (players.has(playerId)) recordPlayStat(players.get(playerId), playKind, outcome);
+    }
+  }
+  return { total, players, teamSetsPlayed, playerSetsPlayed };
+}
+
+function formatPercentage(numerator, denominator) {
+  return denominator > 0 ? `${((numerator / denominator) * 100).toFixed(1)}%` : "—";
+}
+
+function formatSetAverage(points, setsPlayed) {
+  return setsPlayed > 0 ? (points / setsPlayed).toFixed(2) : "—";
+}
+
+function appendPerformanceStats(container) {
+  const categoryDefinitions = [
+    {
+      key: "attack",
+      title: "アタック",
+      headers: ["選手", "打数", "得点", "失点", "決定率", "セット平均"],
+      values: (stats, setsPlayed) => [
+        stats.attack.attempts,
+        stats.attack.points,
+        stats.attack.errors,
+        formatPercentage(stats.attack.points, stats.attack.attempts),
+        formatSetAverage(stats.attack.points, setsPlayed),
+      ],
+    },
+    {
+      key: "backAttack",
+      title: "バックアタック",
+      headers: ["選手", "打数", "得点", "失点", "決定率"],
+      values: (stats) => [
+        stats.backAttack.attempts,
+        stats.backAttack.points,
+        stats.backAttack.errors,
+        formatPercentage(stats.backAttack.points, stats.backAttack.attempts),
+      ],
+    },
+    {
+      key: "block",
+      title: "ブロック",
+      headers: ["選手", "得点", "セット平均"],
+      values: (stats, setsPlayed) => [stats.block.points, formatSetAverage(stats.block.points, setsPlayed)],
+    },
+    {
+      key: "serve",
+      title: "サーブ",
+      headers: ["選手", "打数", "得点", "失点", "効果", "効果率"],
+      values: (stats) => [
+        stats.serve.attempts,
+        stats.serve.points,
+        stats.serve.errors,
+        stats.serve.effective + stats.serve.points,
+        stats.serve.attempts > 0
+          ? `${(((stats.serve.points * 100)
+            + ((stats.serve.effective + stats.serve.points) * 25)
+            - (stats.serve.errors * 25))
+            / stats.serve.attempts).toFixed(1)}%`
+          : "—",
+      ],
+    },
+    {
+      key: "reception",
+      title: "サーブレシーブ",
+      headers: ["選手", "受数", "成功（優）", "成功（良）", "成功率"],
+      values: (stats) => [
+        stats.reception.attempts,
+        stats.reception.excellent,
+        stats.reception.good,
+        stats.reception.attempts > 0
+          ? `${(((stats.reception.excellent * 100) + (stats.reception.good * 50))
+            / stats.reception.attempts).toFixed(1)}%`
+          : "—",
+      ],
+    },
+  ];
+
+  currentMatch.teams.forEach((team, teamIndex) => {
+    const className = teamIndex === 0 ? "team-a" : "team-b";
+    const stats = getPerformanceStats(team);
+    const teamSection = document.createElement("section");
+    teamSection.className = `stats-team-section ${className}`;
+    const heading = document.createElement("h2");
+    heading.textContent = team.name;
+    teamSection.append(heading);
+    categoryDefinitions.forEach((definition) => {
+      const category = document.createElement("section");
+      category.className = "stats-category";
+      const title = document.createElement("h3");
+      title.textContent = definition.title;
+      const rows = [
+        [`チーム合計 / ${team.name}`, ...definition.values(stats.total, stats.teamSetsPlayed)],
+        ...team.players.map((player) => [
+          `#${player.number} ${player.name}`,
+          ...definition.values(
+            stats.players.get(player.id) || emptyPlayStats(),
+            stats.playerSetsPlayed.get(player.id) || 0,
+          ),
+        ]),
+      ];
+      const table = makeTable(definition.headers, rows, `stats-table ${className}`);
+      table.querySelector("tbody tr")?.classList.add("stats-team-total");
+      const scroll = document.createElement("div");
+      scroll.className = "table-scroll";
+      scroll.append(table);
+      category.append(title, scroll);
+      teamSection.append(category);
+    });
+    container.append(teamSection);
+  });
+
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "決定率＝得点÷打数×100、アタック/ブロックセット平均＝得点÷出場セット数、サーブ効果率＝（エース×100＋効果×25－失点×25）÷打数、レシーブ成功率＝（優×100＋良×50）÷受数。サービスエースは効果数にも自動計上します。率は小数第1位、セット平均は小数第2位まで表示し、分母が0の場合は「—」を表示します。";
+  container.append(note);
+}
+
 function renderPrintableScoreSheet() {
   const root = byId("printable-score-sheet");
   root.replaceChildren();
@@ -708,6 +974,12 @@ function renderPrintableScoreSheet() {
   appendPrintSection(root, "チーム構成・登録選手", ["チーム", "背番号", "氏名", "役割"], currentMatch.teams.flatMap((team) => team.players.map((player) => [
     team.name, player.number, player.name, player.isCaptain ? "キャプテン" : "選手",
   ])));
+
+  const statsHeading = document.createElement("h2");
+  statsHeading.className = "score-sheet-section-title";
+  statsHeading.textContent = "チーム別・選手別プレー記録";
+  root.append(statsHeading);
+  appendPerformanceStats(root);
 
   const positionNames = currentMatch.rules.matchProfile === "nine"
     ? ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ"]
@@ -1191,6 +1463,9 @@ function bindEvents() {
     addEvent({ type: "sanction", teamId: byId("sanction-team").value, player: player.slice(0, 20), sanctionType: byId("sanction-type").value });
     byId("sanction-player").value = "";
   });
+  byId("play-team").addEventListener("change", renderPlayEntryForm);
+  byId("play-kind").addEventListener("change", renderPlayEntryForm);
+  byId("record-play").addEventListener("click", recordPlay);
   byId("record-court-change").addEventListener("click", () => {
     const total = currentMatch.teams.reduce((sum, team) => sum + getScore(currentSet(), team.id), 0);
     const teamId = currentMatch.teams[0].id;

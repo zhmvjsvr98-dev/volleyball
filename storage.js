@@ -47,11 +47,25 @@ function validateEvent(event, validTeamIds) {
     if (event.delta !== 1 && event.delta !== -1) return false;
     if (event.correctionOf !== undefined && !isText(event.correctionOf, 80)) return false;
     if (event.rotationAdvanced !== undefined && typeof event.rotationAdvanced !== "boolean") return false;
+    if (event.statPlayKind !== undefined && !["attack", "backAttack", "block", "serve"].includes(event.statPlayKind)) return false;
     if (event.delta < 0 || event.playType === undefined) return true;
-    return ["serve", "attack", "block", "opponent-error", "penalty", "other"].includes(event.playType)
+    return ["serve", "attack", "back-attack", "block", "opponent-error", "penalty", "other"].includes(event.playType)
       && (event.playerId === null || isText(event.playerId, 80))
       && (event.faultPlayerId === null || isText(event.faultPlayerId, 80))
       && isText(event.note || "", 120);
+  }
+  if (event.type === "play") {
+    if (!["attack", "backAttack", "block", "serve", "reception"].includes(event.playKind)
+      || !(event.playerId === null || isText(event.playerId, 80))
+      || !isText(event.note || "", 120)) return false;
+    const allowedOutcomes = {
+      attack: ["error", "continued"],
+      backAttack: ["error", "continued"],
+      block: ["error", "touch"],
+      serve: ["error", "effective", "continued"],
+      reception: ["excellent", "good", "other"],
+    };
+    return allowedOutcomes[event.playKind].includes(event.outcome);
   }
   if (event.type === "timeout") return true;
   if (event.type === "court-change") return Number.isInteger(event.totalPoints) && event.totalPoints >= 0 && event.totalPoints <= 198;
@@ -130,6 +144,7 @@ export function validateMatch(match) {
       if (lineup.length > 9 || new Set(assigned).size !== assigned.length || assigned.some((id) => !playerIds.includes(id))) return false;
     }
     for (const event of set.events) {
+      if (event.type === "play" && event.playerId && !playerIdsByTeam.get(event.teamId).has(event.playerId)) return false;
       if (event.type !== "score" || event.delta < 0) continue;
       const scoringPlayers = playerIdsByTeam.get(event.teamId);
       const opponentPlayers = new Set([...playerIdsByTeam.entries()]
