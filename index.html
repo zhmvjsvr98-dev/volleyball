@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#123c35">
+  <meta name="theme-color" content="#102e5b">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
@@ -14,153 +14,289 @@
 </head>
 <body>
   <header class="app-header">
+    <button id="sidebar-toggle" class="button button-quiet sidebar-toggle" type="button" aria-expanded="true" aria-controls="sidebar">☰</button>
     <a class="brand" href="./" aria-label="試合記録トップ">
       <img src="./icons/volleyball.svg" alt="" width="38" height="38">
-      <span><strong>JVA Volleyball</strong><small>OFFICIAL ELECTRONIC SCORE SHEET</small></span>
+      <span><strong>JVA Volleyball Official</strong><small>Electronic Score Sheet</small></span>
     </a>
     <div class="header-actions">
       <span id="save-status" class="save-status" role="status" aria-live="polite">準備中</span>
+      <span class="connection-status"><span class="status-dot"></span> オフライン対応</span>
+      <label class="device-picker">表示
+        <select id="device-preset" aria-label="画面レイアウト">
+          <option value="auto">自動</option><option value="phone">スマートフォン</option>
+          <option value="tablet">タブレット</option><option value="desktop">パソコン</option>
+        </select>
+      </label>
       <button id="theme-toggle" class="button button-quiet" type="button" aria-label="表示テーマを切り替え">テーマ</button>
     </div>
   </header>
 
-  <main class="page-shell">
-    <section class="toolbar panel" aria-label="試合操作">
-      <div class="toolbar-title">
-        <span class="eyebrow">MATCH DESK</span>
-        <h1>試合記録</h1>
-      </div>
-      <div class="toolbar-controls">
-        <label class="history-label" for="match-history">試合履歴
+  <div class="app-layout">
+    <aside id="sidebar" class="sidebar" aria-label="メインナビゲーション">
+      <nav id="main-navigation" class="main-navigation">
+        <button class="nav-item active" data-page="home"><span>⌂</span>ホーム</button>
+        <button class="nav-item" data-page="setup"><span>▤</span>大会管理・試合設定</button>
+        <button class="nav-item" data-page="members"><span>♙</span>メンバー登録</button>
+        <button class="nav-item" data-page="staff"><span>♧</span>審判登録</button>
+        <button class="nav-item" data-page="confirm"><span>☑</span>開始確認</button>
+        <button class="nav-item" data-page="match"><span>▣</span>試合画面</button>
+        <button class="nav-item" data-page="events"><span>☷</span>イベント管理</button>
+        <button class="nav-item" data-page="scoresheet"><span>⇄</span>スコアシート</button>
+        <button class="nav-item" data-page="sets"><span>▧</span>セット履歴</button>
+        <button class="nav-item" data-page="result"><span>♜</span>試合結果</button>
+        <button class="nav-item" data-page="verify"><span>☑</span>スコアシート確認</button>
+        <button class="nav-item" data-page="output"><span>⇩</span>データ出力 (PDF)</button>
+      </nav>
+      <div class="sidebar-footer"><span class="footer-ball">●</span><br>つなぐ、支える。<br>バレーボールの未来へ</div>
+    </aside>
+
+    <main class="page-shell">
+      <div id="error-banner" class="error-banner" role="alert" hidden></div>
+      <div class="page-tools">
+        <label class="history-label" for="match-history">保存済み試合
           <select id="match-history" aria-label="保存済み試合"></select>
         </label>
         <button id="new-match" class="button button-secondary" type="button">新しい試合</button>
-        <button id="delete-match" class="button button-secondary" type="button">この試合を削除</button>
-        <button id="export-match" class="button button-secondary" type="button">データ書き出し</button>
-        <button id="import-match" class="button button-secondary" type="button">データ読み込み</button>
-        <input id="import-file" class="visually-hidden" type="file" accept="application/json,.json">
+        <button id="delete-match" class="button button-secondary" type="button">試合を削除</button>
         <button id="print-match" class="button button-primary" type="button">印刷 / PDF</button>
       </div>
-    </section>
 
-    <div id="error-banner" class="error-banner" role="alert" hidden></div>
-
-    <section class="panel match-details">
-      <div class="section-heading">
-        <div><span class="eyebrow">MATCH INFORMATION</span><h2>試合情報</h2></div>
-        <span class="autosave-note">入力内容はこの端末に自動保存されます</span>
-      </div>
-      <div class="form-grid">
-        <label class="field field-wide">大会名
-          <input id="tournament-name" maxlength="80" autocomplete="off" placeholder="大会名を入力">
-        </label>
-        <label class="field">試合日
-          <input id="match-date" type="date">
-        </label>
-        <label class="field">会場
-          <input id="venue" maxlength="80" autocomplete="off" placeholder="会場名">
-        </label>
-        <label class="field">第1審判
-          <input id="referee-1" maxlength="60" autocomplete="name" placeholder="氏名">
-        </label>
-        <label class="field">第2審判
-          <input id="referee-2" maxlength="60" autocomplete="name" placeholder="氏名">
-        </label>
-        <label class="field">記録員
-          <input id="scorer" maxlength="60" autocomplete="name" placeholder="氏名">
-        </label>
-      </div>
-      <details class="rules-panel">
-        <summary>試合形式・得点ルール</summary>
-        <div class="rules-grid">
-          <label class="field">試合形式
-            <select id="best-of">
-              <option value="3">3セットマッチ（2セット先取）</option>
-              <option value="5">5セットマッチ（3セット先取）</option>
-            </select>
-          </label>
-          <label class="field">通常セット目標点
-            <input id="regular-target" type="number" min="1" max="99" inputmode="numeric">
-          </label>
-          <label class="field">最終セット目標点
-            <input id="final-target" type="number" min="1" max="99" inputmode="numeric">
-          </label>
-          <label class="field">1セットのタイムアウト上限
-            <input id="timeout-limit" type="number" min="0" max="10" inputmode="numeric">
-          </label>
+      <section class="app-page home-page active" data-page-panel="home">
+        <div class="home-score-preview">
+          <strong id="home-score-a">0</strong><span id="home-set-label">SET 1</span><strong id="home-score-b">0</strong>
         </div>
-        <p class="notice">初期値は一般的な6人制の目安です。大会要項・適用規則を確認してから試合を開始してください。勝利には目標点以上かつ2点差が必要です。</p>
-      </details>
-    </section>
-
-    <section class="teams-grid" aria-label="チーム・選手">
-      <article id="team-a-card" class="panel team-card"></article>
-      <article id="team-b-card" class="panel team-card"></article>
-    </section>
-
-    <section class="panel scoring-panel">
-      <div class="section-heading">
-        <div><span class="eyebrow">LIVE SCORE</span><h2>リアルタイム記録</h2></div>
-        <div id="match-state" class="state-badge">準備中</div>
-      </div>
-      <div id="scoreboard" class="scoreboard"></div>
-      <div class="set-navigation">
-        <div id="set-strip" class="set-strip" aria-label="セット状況"></div>
-        <div class="set-actions">
-          <button id="next-set" class="button button-primary" type="button" hidden>次のセットを開始</button>
-          <button id="undo-event" class="button button-secondary" type="button">直前の記録を取り消す</button>
+        <div class="home-hero">
+          <div class="hero-ball"><img src="./icons/volleyball.svg" alt="" width="56" height="56"></div>
+          <span class="eyebrow">JVA OFFICIAL ELECTRONIC SCORING SYSTEM</span>
+          <h1>JVA Volleyball Official Electronic Score Sheet</h1>
+          <p>バレーボール電子記録システム</p>
+          <button class="button button-primary hero-start" data-go="setup" type="button">▶　記録を開始</button>
+          <div class="court-decoration" aria-hidden="true"><span>P4</span><span>P2</span><span>P5</span><span>P6</span><span>P1</span></div>
         </div>
-      </div>
-      <div class="event-tools">
-        <section class="event-tool">
-          <h3>タイムアウト</h3>
-          <div id="timeout-actions" class="action-pair"></div>
-        </section>
-        <section class="event-tool">
-          <h3>メンバーチェンジ</h3>
-          <div class="event-form">
-            <label class="field">チーム
-              <select id="sub-team"></select>
+        <p class="home-caption">大会情報とチームを登録して、記録を始めましょう。</p>
+      </section>
+
+      <section class="app-page" data-page-panel="setup" hidden>
+        <div class="page-heading"><div><span class="eyebrow">01. MATCH SETUP</span><h1>大会管理・試合設定</h1><p>大会と試合の基本情報を入力してください。</p></div><button class="button button-primary" data-go="members" type="button">次へ: 02 メンバー登録　›</button></div>
+        <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">MATCH INFORMATION</span><h2>大会・試合基本情報</h2></div><span class="autosave-note">入力内容は自動保存されます</span></div>
+          <div class="form-grid">
+            <label class="field field-wide">大会名
+              <input id="tournament-name" maxlength="80" autocomplete="off" placeholder="大会名を入力">
             </label>
-            <label class="field">退く選手
-              <input id="sub-out" inputmode="numeric" maxlength="3" placeholder="背番号">
-            </label>
-            <label class="field">入る選手
-              <input id="sub-in" inputmode="numeric" maxlength="3" placeholder="背番号">
-            </label>
-            <button id="record-substitution" class="button button-secondary" type="button">交代を記録</button>
+            <label class="field">試合日<input id="match-date" type="date"></label>
+            <label class="field">会場<input id="venue" maxlength="80" autocomplete="off" placeholder="会場名"></label>
+            <label class="field">コート<input id="court" maxlength="20" placeholder="Aコート"></label>
+            <label class="field">試合番号<input id="match-number" maxlength="20" placeholder="第1試合"></label>
+            <label class="field">ラウンド・試合区分<input id="round" maxlength="40" placeholder="予選 / 準決勝"></label>
+            <label class="field">設定時刻<input id="scheduled-time" type="time"></label>
           </div>
         </section>
-        <section class="event-tool">
-          <h3>警告・退場</h3>
-          <div class="event-form">
-            <label class="field">チーム
-              <select id="sanction-team"></select>
+        <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">COMPETITION PROFILE</span><h2>大会・競技条件</h2></div></div>
+          <div class="rules-grid">
+            <label class="field">競技形式
+              <select id="match-profile"><option value="six">6人制</option><option value="nine">9人制</option></select>
             </label>
-            <label class="field">選手 / 対象者
-              <input id="sanction-player" maxlength="20" placeholder="背番号または氏名">
+            <label class="field">カテゴリー
+              <select id="category"><option>一般</option><option>大学</option><option>高校</option><option>中学校</option><option>小学生</option><option>マスターズ</option><option>その他</option></select>
             </label>
-            <label class="field">内容
-              <select id="sanction-type">
-                <option value="warning">警告</option>
-                <option value="penalty">ペナルティ</option>
-                <option value="expulsion">退場</option>
-                <option value="disqualification">失格</option>
-              </select>
+            <label class="field">種別
+              <select id="division"><option>男子</option><option>女子</option><option>混合</option><option>その他</option></select>
             </label>
-            <button id="record-sanction" class="button button-secondary" type="button">処置を記録</button>
+            <label class="field">試合方式
+              <select id="best-of"><option value="3">3セットマッチ（2セット先取）</option><option value="5">5セットマッチ（3セット先取）</option></select>
+            </label>
+            <label class="field">セット勝利に必要な点差
+              <input id="win-by" type="number" min="1" max="10" inputmode="numeric">
+            </label>
+            <label class="field">1セットのタイムアウト上限
+              <input id="timeout-limit" type="number" min="0" max="10" inputmode="numeric">
+            </label>
+            <label class="field">1セットの交代上限
+              <input id="substitution-limit" type="number" min="0" max="30" inputmode="numeric">
+            </label>
+            <label class="field">登録選手上限 / チーム
+              <input id="roster-limit" type="number" min="1" max="42" inputmode="numeric">
+            </label>
+            <label class="field">コートチェンジ間隔（点）
+              <input id="court-change-interval" type="number" min="0" max="99" inputmode="numeric">
+            </label>
+            <label class="check-setting"><input id="rotation-enabled" type="checkbox"> ローテーションを記録する</label>
+            <label class="field">ウォームアップ（分）
+              <input id="warmup-minutes" type="number" min="0" max="60" inputmode="numeric">
+            </label>
+            <label class="field">規則・大会要項メモ
+              <input id="rules-note" maxlength="240" placeholder="大会固有の適用ルール">
+            </label>
           </div>
         </section>
-      </div>
-      <div class="event-log-wrap">
-        <div class="section-heading compact-heading"><div><span class="eyebrow">EVENT LOG</span><h2>セット記録</h2></div></div>
-        <ol id="event-log" class="event-log"></ol>
-        <p id="empty-log" class="empty-message">記録はまだありません。</p>
-      </div>
-    </section>
+        <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">SET TARGETS</span><h2>セットごとの目標点</h2></div></div>
+          <div class="set-target-grid">
+            <label class="field">第1セット<input id="set-target-1" type="number" min="1" max="99" inputmode="numeric"></label>
+            <label class="field">第2セット<input id="set-target-2" type="number" min="1" max="99" inputmode="numeric"></label>
+            <label class="field">第3セット<input id="set-target-3" type="number" min="1" max="99" inputmode="numeric"></label>
+            <label class="field">第4セット<input id="set-target-4" type="number" min="1" max="99" inputmode="numeric"></label>
+            <label class="field">第5セット<input id="set-target-5" type="number" min="1" max="99" inputmode="numeric"></label>
+          </div>
+          <p class="notice">利用するセット数・目標点・交代条件等は必ず大会要項で確認してください。空欄や範囲外の値は保存されません。</p>
+        </section>
+        <section class="teams-grid setup-teams">
+          <label class="field">チームA<input id="team-name-setup-a" maxlength="60" placeholder="チーム名を入力"></label>
+          <label class="field">チームB<input id="team-name-setup-b" maxlength="60" placeholder="チーム名を入力"></label>
+        </section>
+      </section>
 
-    <p class="footer-note">本アプリは記録支援ツールです。公式運用前に、適用される競技規則と大会要項、公式記録票との照合を行ってください。</p>
-  </main>
+      <section class="app-page" data-page-panel="members" hidden>
+        <div class="page-heading"><div><span class="eyebrow">02. TEAM ROSTER</span><h1>メンバー登録</h1><p>両チームの登録選手とキャプテンを管理します。</p></div><button class="button button-primary" data-go="staff" type="button">次へ: 03 審判登録　›</button></div>
+        <div class="roster-summary panel"><strong id="roster-count">チームA: 0名　/　チームB: 0名</strong><span>背番号の重複は登録できません</span></div>
+        <section class="teams-grid">
+          <article id="team-a-card" class="panel team-card"></article>
+          <article id="team-b-card" class="panel team-card"></article>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="staff" hidden>
+        <div class="page-heading"><div><span class="eyebrow">03. OFFICIALS</span><h1>審判登録</h1><p>役員の氏名と所属都道府県または国名を登録します。</p></div><button class="button button-primary" data-go="confirm" type="button">次へ: 04 開始確認　›</button></div>
+        <section class="panel content-panel">
+          <div class="officials-grid">
+            <label class="field">ファーストレフェリー 氏名<input id="official-name-firstReferee" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-firstReferee" maxlength="40" placeholder="例: 東京都 / Japan"></label>
+            <label class="field">セカンドレフェリー 氏名<input id="official-name-secondReferee" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-secondReferee" maxlength="40" placeholder="例: 大阪府 / Japan"></label>
+            <label class="field">スコアラー 氏名<input id="official-name-scorer" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-scorer" maxlength="40" placeholder="例: 神奈川県 / Japan"></label>
+            <label class="field">アシスタントスコアラー 氏名<input id="official-name-assistantScorer" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-assistantScorer" maxlength="40" placeholder="例: 千葉県 / Japan"></label>
+            <label class="field">ラインジャッジ1 氏名<input id="official-name-lineJudge1" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-lineJudge1" maxlength="40" placeholder="例: 埼玉県 / Japan"></label>
+            <label class="field">ラインジャッジ2 氏名<input id="official-name-lineJudge2" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-lineJudge2" maxlength="40" placeholder="例: 愛知県 / Japan"></label>
+            <label class="field">ラインジャッジ3 氏名<input id="official-name-lineJudge3" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-lineJudge3" maxlength="40" placeholder="例: 福岡県 / Japan"></label>
+            <label class="field">ラインジャッジ4 氏名<input id="official-name-lineJudge4" maxlength="60" placeholder="氏名"></label>
+            <label class="field">都道府県 / 国名<input id="official-area-lineJudge4" maxlength="40" placeholder="例: 北海道 / Japan"></label>
+          </div>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="confirm" hidden>
+        <div class="page-heading"><div><span class="eyebrow">04. MATCH CONFIRMATION</span><h1>試合開始確認</h1><p>登録内容を確認して、記録画面へ進みます。</p></div></div>
+        <section class="panel content-panel">
+          <div id="confirmation-summary" class="confirmation-grid"></div>
+          <div class="confirm-actions"><button class="button button-secondary" data-go="setup" type="button">設定を修正</button><button class="button button-primary" data-go="match" type="button">試合画面へ進む　▶</button></div>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="match" hidden>
+        <div class="page-heading"><div><span class="eyebrow">05. LIVE MATCH</span><h1>試合画面</h1><p id="live-match-meta">リアルタイムスコア記録</p></div><div id="match-state" class="state-badge">準備中</div></div>
+        <section class="panel scoring-panel">
+          <div class="rotation-controls">
+            <label class="field">このセットの最初のサーブ
+              <select id="initial-server"></select>
+            </label>
+            <span id="server-indicator" class="server-indicator">サーバー: 未設定</span>
+          </div>
+          <div class="rotation-panels">
+            <section class="rotation-panel"><h2 id="rotation-team-a-name">チームA ローテーション</h2><div id="rotation-team-a" class="rotation-court"></div></section>
+            <section class="rotation-panel"><h2 id="rotation-team-b-name">チームB ローテーション</h2><div id="rotation-team-b" class="rotation-court"></div></section>
+          </div>
+          <div id="scoreboard" class="scoreboard"></div>
+          <div class="court-change-row">
+            <span id="court-change-status" class="court-change-status">コートチェンジ条件: 未設定</span>
+            <button id="record-court-change" class="button button-secondary" type="button" hidden>コートチェンジを記録</button>
+          </div>
+          <div class="set-navigation"><div id="set-strip" class="set-strip" aria-label="セット状況"></div><div class="set-actions"><button id="next-set" class="button button-primary" type="button" hidden>次のセットを開始</button><button id="undo-event" class="button button-secondary" type="button">直前の記録を取り消す</button></div></div>
+          <div class="match-shortcuts"><button class="button button-secondary" data-go="events" type="button">タイムアウト・交代などを記録</button><button class="button button-secondary" data-go="scoresheet" type="button">スコアシートを見る</button></div>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="events" hidden>
+        <div class="page-heading"><div><span class="eyebrow">06. EVENT MANAGEMENT</span><h1>イベント管理</h1><p>タイムアウト、メンバーチェンジ、警告・退場を記録します。</p></div><button class="button button-secondary" data-go="match" type="button">‹ 試合画面へ戻る</button></div>
+        <section class="panel content-panel">
+          <div class="event-tools">
+            <section class="event-tool"><h3>タイムアウト</h3><div id="timeout-actions" class="action-pair"></div></section>
+            <section class="event-tool"><h3>メンバーチェンジ</h3><div class="event-form">
+              <label class="field">チーム<select id="sub-team"></select></label>
+              <label class="field">退く選手<input id="sub-out" inputmode="numeric" maxlength="3" placeholder="背番号"></label>
+              <label class="field">入る選手<input id="sub-in" inputmode="numeric" maxlength="3" placeholder="背番号"></label>
+              <button id="record-substitution" class="button button-secondary" type="button">交代を記録</button>
+            </div></section>
+            <section class="event-tool"><h3>警告・退場</h3><div class="event-form">
+              <label class="field">チーム<select id="sanction-team"></select></label>
+              <label class="field">選手 / 対象者<input id="sanction-player" maxlength="20" placeholder="背番号または氏名"></label>
+              <label class="field">内容<select id="sanction-type"><option value="warning">警告</option><option value="penalty">ペナルティ</option><option value="expulsion">退場</option><option value="disqualification">失格</option></select></label>
+              <button id="record-sanction" class="button button-secondary" type="button">処置を記録</button>
+            </div></section>
+          </div>
+        </section>
+        <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">EVENT LOG</span><h2>試合イベント記録</h2></div></div>
+          <ol id="event-log" class="event-log"></ol><p id="empty-log" class="empty-message">記録はまだありません。</p>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="scoresheet" hidden>
+        <div class="page-heading"><div><span class="eyebrow">07. SCORE SHEET</span><h1>スコアシート</h1><p>セットごとの得点と登録情報を確認します。</p></div><button class="button button-primary" data-go="output" type="button">記録票を出力　›</button></div>
+        <section class="panel content-panel"><div id="score-sheet-summary"></div></section>
+      </section>
+
+      <section class="app-page" data-page-panel="sets" hidden>
+        <div class="page-heading"><div><span class="eyebrow">08. SET HISTORY</span><h1>セット履歴</h1><p>完了したセットの得点と勝者を表示します。</p></div></div>
+        <section class="panel content-panel"><div id="set-history-table"></div></section>
+      </section>
+
+      <section class="app-page" data-page-panel="result" hidden>
+        <div class="page-heading"><div><span class="eyebrow">09. MATCH RESULT</span><h1>試合結果</h1><p>最終結果とセットカウントを確認します。</p></div></div>
+        <section class="panel content-panel"><div id="match-result-summary"></div></section>
+      </section>
+
+      <section class="app-page" data-page-panel="verify" hidden>
+        <div class="page-heading"><div><span class="eyebrow">10. SCORE SHEET CHECK</span><h1>スコアシート確認</h1><p>入力内容の不足や未完了項目を確認します。</p></div></div>
+        <section class="panel content-panel"><ul id="verification-list" class="verification-list"></ul></section>
+      </section>
+
+      <section class="app-page" data-page-panel="output" hidden>
+        <div class="page-heading"><div><span class="eyebrow">11. DATA OUTPUT</span><h1>記録票出力</h1><p>印刷またはPDFとして保存します。</p></div></div>
+        <section class="panel content-panel output-panel">
+          <h2>印刷 / PDF保存</h2><p>ブラウザーの印刷画面で「PDFに保存」を選択できます。</p>
+          <button class="button button-primary" data-print type="button">印刷プレビューを開く</button>
+          <hr>
+          <h2>バックアップ</h2><p>試合データはこの端末に保存されます。試合後にJSON形式でバックアップしてください。</p>
+          <div class="output-actions"><button id="export-match" class="button button-secondary" type="button">JSONを書き出す</button><button id="import-match" class="button button-secondary" type="button">JSONを読み込む</button><input id="import-file" class="visually-hidden" type="file" accept="application/json,.json"></div>
+        </section>
+        <section id="printable-score-sheet" class="print-only"></section>
+      </section>
+
+      <p class="footer-note">本アプリは記録支援ツールです。公式運用前に、適用される競技規則と大会要項、公式記録票との照合を行ってください。</p>
+    </main>
+  </div>
+  <dialog id="score-detail-dialog" class="score-dialog">
+    <form id="score-detail-form" method="dialog">
+      <div class="section-heading"><div><span class="eyebrow">POINT DETAIL</span><h2>得点の詳細を記録</h2></div><button id="cancel-score-detail" class="button button-secondary" type="button">閉じる</button></div>
+      <p id="scoring-team-label" class="dialog-team-label"></p>
+      <p id="score-dialog-error" class="dialog-error" role="alert" hidden></p>
+      <label class="field">得点につながったプレー
+        <select id="score-play-type">
+          <option value="serve">サービスエース</option><option value="attack">アタック</option>
+          <option value="block">ブロック</option><option value="opponent-error">相手のミス</option>
+          <option value="penalty">反則・ペナルティ</option><option value="other">その他</option>
+        </select>
+      </label>
+      <label class="field">該当選手
+        <select id="score-player"><option value="">選択しない</option></select>
+      </label>
+      <label id="fault-player-field" class="field" hidden>相手側の該当選手
+        <select id="fault-player"><option value="">選択しない</option></select>
+      </label>
+      <label class="field">備考（任意）
+        <input id="score-note" maxlength="120" placeholder="プレー内容の補足">
+      </label>
+      <div class="dialog-actions"><button id="confirm-score" class="button button-primary" type="submit">得点を記録する</button></div>
+    </form>
+  </dialog>
   <div id="live-announcer" class="visually-hidden" aria-live="assertive"></div>
 </body>
 </html>

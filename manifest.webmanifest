@@ -6,8 +6,8 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f2f5f1",
-  "theme_color": "#123c35",
+  "background_color": "#07142d",
+  "theme_color": "#102e5b",
   "icons": [
     {
       "src": "./icons/volleyball.svg",

@@ -6,7 +6,7 @@ function element(tag, className, text) {
 }
 
 // チームカードはDOM APIだけで組み立て、利用者が入力した文字列をHTMLとして解釈させません。
-export function renderTeamCard(container, team, index) {
+export function renderTeamCard(container, team, index, rosterLimit = 30, rosterLocked = false) {
   container.replaceChildren();
   const head = element("div", "team-card-head");
   const title = element("div");
@@ -49,6 +49,7 @@ export function renderTeamCard(container, team, index) {
     remove.dataset.removePlayer = player.id;
     remove.dataset.teamId = team.id;
     remove.setAttribute("aria-label", `${player.name}を選手一覧から削除`);
+    remove.disabled = rosterLocked;
     removeCell.append(remove);
     row.append(removeCell);
     tbody.append(row);
@@ -70,6 +71,8 @@ export function renderTeamCard(container, team, index) {
   captainLabel.append(captainCheck, document.createTextNode("キャプテン"));
   const addButton = element("button", "button button-secondary", "選手を追加");
   addButton.type = "submit";
+  addButton.disabled = rosterLocked || team.players.length >= rosterLimit;
+  form.querySelectorAll("input").forEach((input) => { input.disabled = rosterLocked; });
   form.append(numberLabel, namePlayerLabel, captainLabel, addButton);
   container.append(form);
 }
