@@ -79,22 +79,157 @@
       </section>
 
       <section class="app-page" data-page-panel="manual" hidden>
-        <div class="page-heading"><div><span class="eyebrow">USER MANUAL</span><h1>取扱いマニュアル</h1><p>このページから印刷またはPDF保存できます。</p></div><button id="print-manual" class="button button-primary" type="button">マニュアルを印刷 / PDF保存</button></div>
+        <div class="page-heading"><div><span class="eyebrow">USER MANUAL</span><h1>取扱いマニュアル</h1><p>画面イメージを見ながら、試合準備から記録票の保存まで順番に確認できます。</p></div><button id="print-manual" class="button button-primary" type="button">マニュアルを印刷 / PDF保存</button></div>
         <article id="manual-document" class="panel content-panel manual-document">
-          <h2>JVA Volleyball Official Electronic Score Sheet</h2>
-          <h3>1. 試合の準備</h3>
-          <p>左側のメニューから「大会管理・試合設定」「メンバー登録」「ローテーション設定」「審判登録」「開始確認」の順に設定し、「試合を開始する」を押します。6人制のコート表示は横2人・縦3人で、チームAは左下の位置1から、チームBは右上の位置1から並びます。</p>
-          <h3>2. 得点とラリーの記録</h3>
-          <p>得点チームの「+1」で得点と得点プレーを記録します。ラリー中の各動作は「ラリー・イベント記録」から、チーム、選手、動作、結果を選んで1回ずつ入力します。サーブ、レシーブ、トス、アタック、ブロック、ミスなどの順に記録すると、得点前後の流れをイベント一覧と記録票で振り返れます。</p>
-          <h3>3. タイムアウト・セット間</h3>
-          <p>通常のタイムアウトを記録すると30秒のカウントダウンを表示します。セット終了後は3分のカウントダウンを表示します。小学生カテゴリの決定セットでは11点到達時にSTOを自動記録します。STOは通常タイムアウト回数に含めず、イベント記録には残します。</p>
-          <h3>4. コートチェンジ</h3>
-          <p>セット終了後のコートチェンジは自動記録します。3セットマッチの第3セット、または5セットマッチの第5セットでは、目標25点なら13点、21点なら8点で自動記録します。小学生の3セットマッチ第3セットは8点で記録します。</p>
-          <h3>5. チャレンジ</h3>
-          <p>イベント記録でチーム、対象プレー（ネットタッチ、ブロックタッチなど）、判定結果を登録します。各チームは1セットに失敗2回までです。成功したチャレンジは失敗回数を消費しません。</p>
-          <h3>6. 記録票・マニュアルのPDF</h3>
-          <p>「記録票PDF」で出力する帳票を選択してプレビューし、印刷画面からPDF保存できます。試合記録とマニュアルは別ページ・別帳票です。データはこの端末のブラウザーに保存されるため、試合後はJSONバックアップを作成してください。</p>
-          <p class="notice">本アプリは記録支援ツールです。公式大会での使用前に大会要項・競技規則および公式記録票と照合してください。</p>
+          <header class="manual-cover">
+            <span class="eyebrow">JVA VOLLEYBALL OFFICIAL ELECTRONIC SCORE SHEET</span>
+            <h2>はじめての試合記録ガイド</h2>
+            <p>画面の場所と押す順番を、画面イメージと一緒に説明します。</p>
+            <div class="manual-cover-route"><span>試合設定</span><b>→</b><span>選手・審判</span><b>→</b><span>開始確認</span><b>→</b><span>試合記録</span><b>→</b><span>PDF保存</span></div>
+            <p class="manual-smallprint">画面イメージは操作場所を示す模式図です。登録名や得点は例であり、実際の画面では入力した内容が表示されます。</p>
+          </header>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">01</span><div><h3>アプリを開いて準備を始める</h3><p>ホームから新しい試合の設定へ進みます。</p></div></div>
+            <figure class="manual-figure">
+              <div class="manual-screen manual-home-screen" role="img" aria-label="ホーム画面イメージ。取扱いマニュアルと試合設定を始めるボタンを表示">
+                <div class="mock-header"><b>JVA Volleyball Official</b><span>オフライン対応</span></div>
+                <div class="mock-body"><div class="mock-sidebar"><span>ホーム</span><span>取扱いマニュアル</span><span>大会管理・試合設定</span><span>メンバー登録</span></div>
+                  <div class="mock-content"><small>JVA OFFICIAL ELECTRONIC SCORING SYSTEM</small><strong class="mock-home-title">バレーボール電子記録システム</strong><div class="mock-button-row"><span class="mock-button secondary">取扱いマニュアル</span><span class="mock-button">試合設定を始める ①</span></div></div>
+                </div>
+              </div>
+              <figcaption><b>画面イメージ 1</b> ホーム画面</figcaption>
+            </figure>
+            <ol class="manual-instructions">
+              <li>左のメニューが閉じている場合は、画面上部の<strong>「メニュー」</strong>を押すと開きます。スマートフォンでは必要に応じてメニューを開いてください。</li>
+              <li><strong>「試合設定を始める」</strong>または左メニューの「大会管理・試合設定」を選びます。使い方を先に読みたい場合は「取扱いマニュアル」を開いてください。</li>
+              <li>このアプリのデータは利用中のブラウザー内に保存されます。端末を変えても自動では共有されません。</li>
+            </ol>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">02</span><div><h3>大会・試合条件を入力する</h3><p>大会要項を確認して、試合前に条件をそろえます。</p></div></div>
+            <figure class="manual-figure">
+              <div class="manual-screen" role="img" aria-label="試合設定画面イメージ。大会名、日付、競技形式、カテゴリ、セット数と目標点の欄を表示">
+                <div class="mock-header"><b>大会管理・試合設定</b><span>入力内容は自動保存</span></div>
+                <div class="mock-content mock-fields"><span class="mock-field wide">大会名 <i>大会名を入力</i></span><span class="mock-field">試合日 <i>2026-10-13</i></span><span class="mock-field">会場 <i>体育館名</i></span>
+                  <span class="mock-field">競技形式 <i>6人制</i></span><span class="mock-field">カテゴリー <i>一般</i></span><span class="mock-field">試合方式 <i>3セットマッチ</i></span>
+                  <span class="mock-subheading">セットごとの目標点</span><span class="mock-field">第1セット <i>25</i></span><span class="mock-field">第2セット <i>25</i></span><span class="mock-field">第3セット <i>15</i></span>
+                </div>
+              </div>
+              <figcaption><b>画面イメージ 2</b> 試合設定画面</figcaption>
+            </figure>
+            <ol class="manual-instructions">
+              <li>大会名、試合日、会場、コート、試合番号、ラウンドを入力します。未確定の項目は空欄でも進められます。</li>
+              <li>競技形式・カテゴリー・種別・試合方式を選択します。セット数と各セット目標点も大会要項に合わせます。</li>
+              <li>点差、タイムアウト上限、交代上限、選手登録上限などを確認します。標準値が大会規則と異なる場合は、記録開始前に修正してください。</li>
+              <li>チームA・チームBの名前を入力します。Aは青、Bはオレンジで画面と記録票に表示されます。</li>
+              <li>入力後はメンバー登録へ進みます。試合の記録が始まると、条件の一部を変更できなくなります。</li>
+            </ol>
+            <p class="manual-tip"><b>確認ポイント</b> 目標点やセット数を間違えると終了判定やコートチェンジ判定に影響します。必ず大会要項と照合してください。</p>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">03</span><div><h3>選手とセット開始位置を登録する</h3><p>両チームは左右別々に登録し、試合前にサーブ順を確認します。</p></div></div>
+            <figure class="manual-figure">
+              <div class="manual-screen" role="img" aria-label="ローテーション設定画面イメージ。チームAがネット左、チームBがネット右にそれぞれ2列3段で並ぶ">
+                <div class="mock-header"><b>ローテーション・サーブ順設定</b><span>第1サーバー: チーム A #1</span></div>
+                <div class="mock-court">
+                  <div class="mock-team team-a"><b>チーム A</b><span>#5　#4</span><span>#6　#3</span><span>#1　#2</span></div><div class="mock-net">ネット</div>
+                  <div class="mock-team team-b"><b>チーム B</b><span>#2　#1</span><span>#3　#6</span><span>#4　#5</span></div>
+                </div>
+              </div>
+              <figcaption><b>画面イメージ 3</b> 登録選手とコート配置（選手名・位置は例）</figcaption>
+            </figure>
+            <ol class="manual-instructions">
+              <li>「メンバー登録」で各チームの背番号・氏名・キャプテンを登録します。背番号は同じチーム内で重複できません。</li>
+              <li>以前登録したチームを使う場合は、チーム履歴から選んで読み込みます。読み込んだあと、今回の選手と背番号を確認してください。</li>
+              <li>「ローテーション設定」では、第1セットの最初のサーブチームを選び、位置ごとに選手を割り当てます。必要人数分すべて埋めてください。</li>
+              <li>6人制の図は中央がネットです。チームAは画面左の左下が位置1で、A側から見て反時計回り。チームBは画面右の右上が位置1で、B側から見て反時計回りです。</li>
+              <li>9人制または小学生カテゴリーでは、コート位置ではなく登録したサーブ順を確認します。最初のサーバーも合わせて確認してください。</li>
+              <li>審判登録画面で、ファーストレフェリーからラインジャッジ4までの氏名と都道府県または国名を入力します。</li>
+            </ol>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">04</span><div><h3>開始確認をして試合を始める</h3><p>最初のサーブと両チームの配置を確認してから開始します。</p></div></div>
+            <div class="manual-callout-row"><span class="manual-callout-number">A</span><p><b>開始前チェック：</b>大会名、チーム名、登録人数、審判、最初のサーブ、コート配置を確認します。</p></div>
+            <div class="manual-callout-row"><span class="manual-callout-number">B</span><p><b>試合開始：</b>「試合を開始する」を押すと試合画面へ移動します。必要な選手または位置登録が不足しているときは、設定画面に戻って不足を知らせます。</p></div>
+            <p>開始後にローテーションや競技条件を変更したい場合は、誤記録防止のためそのまま進まず、記録責任者と訂正方法を確認してください。</p>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">05</span><div><h3>試合画面で得点を記録する</h3><p>得点ボタンを押すと、得点のプレー内容を続けて入力します。</p></div></div>
+            <figure class="manual-figure">
+              <div class="manual-screen" role="img" aria-label="試合画面イメージ。中央ネット配置、チームA対チームBの得点、プラス1ボタン、ラリー記録ボタンを表示">
+                <div class="mock-header"><b>試合画面 · 第1セット</b><span class="mock-timer">サーバー: チーム A #1</span></div>
+                <div class="mock-court mock-court-live"><div class="mock-team team-a"><b>チーム A</b><span>#5　#4</span><span>#6　#3</span><span>#1　#2</span></div><div class="mock-net">ネット</div><div class="mock-team team-b"><b>チーム B</b><span>#2　#1</span><span>#3　#6</span><span>#4　#5</span></div></div>
+                <div class="mock-score-row"><div class="mock-score team-a"><b>チーム A</b><strong>12</strong><span>＋1 得点</span></div><div class="mock-score team-b"><b>チーム B</b><strong>10</strong><span>＋1 得点</span></div></div>
+                <div class="mock-button-row"><span class="mock-button secondary">ラリー・イベントを記録</span><span class="mock-button secondary">直前の記録を取り消す</span></div>
+              </div>
+              <figcaption><b>画面イメージ 4</b> 試合画面（点数・選手は例）</figcaption>
+            </figure>
+            <ol class="manual-instructions">
+              <li>得点したチームの<strong>「＋1 得点」</strong>を押します。入力ダイアログで得点プレー（サービスエース、アタック、ブロック、相手のミス等）を選択します。</li>
+              <li>プレーした選手を選び、必要なら相手のミスをした選手や備考を入力して確定します。得点と得点内容が記録されます。</li>
+              <li>誤って得点を追加した場合は、直後なら「直前の記録を取り消す」を使用できます。取り消す前に、対象の記録が直前のものか必ず確認してください。</li>
+              <li>サーブ権、得点、セット進行は画面に反映されます。スコアは試合中に随時確認してください。</li>
+            </ol>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">06</span><div><h3>ラリー中のプレーを1つずつ記録する</h3><p>ラリーの流れを残したい場合は、得点操作とは別にイベントを記録します。</p></div></div>
+            <figure class="manual-figure">
+              <div class="manual-screen" role="img" aria-label="ラリーイベント画面イメージ。チーム、選手、動作、結果、記録ボタンを順に表示">
+                <div class="mock-header"><b>ラリー・イベント記録</b><span>イベントは時系列で保存</span></div>
+                <div class="mock-content mock-event-fields"><span class="mock-field">チーム <i>チーム A</i></span><span class="mock-field">選手 <i>#4 選手名</i></span><span class="mock-field">動作 <i>アタック</i></span><span class="mock-field">結果 <i>成功・継続</i></span><span class="mock-field wide">内容・備考 <i>任意で入力</i></span><span class="mock-button">ラリーの動作を記録</span></div>
+                <div class="mock-event-line"><b>記録の流れ</b><span>サーブ → レシーブ → トス → アタック → 得点</span></div>
+              </div>
+              <figcaption><b>画面イメージ 5</b> ラリーの入力とイベント時系列</figcaption>
+            </figure>
+            <ol class="manual-instructions">
+              <li>試合画面の「ラリー・イベントを記録」からイベント画面を開きます。</li>
+              <li>発生したプレーごとに、チーム、選手、動作、結果を選択し、「ラリーの動作を記録」を押します。サーブ→レシーブ→トス→アタックの順に、実際の順序で入力します。</li>
+              <li>結果には「成功・継続」「得点」「失点・ミス」「タッチ・継続」「効果あり」「レシーブ優/良」等があります。判断に迷う場合は、大会で決めた記録方法に従ってください。</li>
+              <li>ラリーが終わったら試合画面に戻って得点を記録します。ラリー記録だけではスコアは増減しません。</li>
+              <li>得点を「＋1」で入力したときに選んだ得点プレーは、同じ得点を別イベントとして重複記録しないでください。</li>
+            </ol>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">07</span><div><h3>タイムアウト・STO・チャレンジを記録する</h3><p>各機能の回数や記録条件を確認して操作します。</p></div></div>
+            <ul class="manual-bullets">
+              <li><b>通常タイムアウト：</b>イベント画面で対象チームのボタンを押します。規定回数が表示され、記録後は画面上部に30秒のカウントダウンが出ます。</li>
+              <li><b>セット間：</b>セット終了後は画面上部に3分のカウントダウンが出ます。次セット開始前にスコアと次セットのサーバーを確認します。</li>
+              <li><b>小学生STO：</b>小学生・3セットマッチの第3セットで、どちらかが11点に達するとイベントとして自動記録されます。通常タイムアウト回数には加算されません。</li>
+              <li><b>コートチェンジ：</b>セット終了時に記録されます。決定セットは通常25点設定で13点、21点設定で8点、小学生3セットマッチの第3セットで8点到達時に記録されます。</li>
+              <li><b>チャレンジ：</b>チーム・対象（ネットタッチ、ブロックタッチ、アンテナ、イン/アウト、フットフォルト等）・判定結果を選んで記録します。1セットにつき失敗は各チーム2回までで、成功は失敗回数を消費しません。</li>
+              <li><b>交代・制裁：</b>選手交代、警告、ペナルティ、退場、失格はイベント画面の各欄から記録します。背番号・対象者と内容を入力前に確認してください。</li>
+            </ul>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">08</span><div><h3>記録票を確認して印刷・PDF保存する</h3><p>出力したい帳票を選び、プレビューを確認してから保存します。</p></div></div>
+            <figure class="manual-figure">
+              <div class="manual-screen" role="img" aria-label="記録票出力画面イメージ。帳票選択、プレビュー、印刷PDFボタンを表示">
+                <div class="mock-header"><b>記録票出力</b><span>プレビューを確認して保存</span></div>
+                <div class="mock-content mock-output"><span class="mock-field">帳票 <i>ラリー・イベント時系列記録</i></span><span class="mock-button">選択した帳票を印刷 / PDF保存 ①</span><div class="mock-paper"><b>ラリー・イベント時系列記録</b><span>第1セット　時刻　チーム・選手・プレー</span><span>第1セット　時刻　チーム・選手・プレー</span><span>第2セット　時刻　チーム・選手・プレー</span></div></div>
+              </div>
+              <figcaption><b>画面イメージ 6</b> 帳票選択とプレビュー</figcaption>
+            </figure>
+            <ol class="manual-instructions">
+              <li>「記録票PDF」画面を開き、帳票の一覧から必要なものを選びます。試合記録票、得点・コートチェンジ記録、ラリー・イベント時系列記録、取扱いマニュアルは別々に出力できます。</li>
+              <li>プレビューに選択した帳票だけが表示されていること、チーム名・得点・記録内容に誤りがないことを確認します。</li>
+              <li>「選択した帳票を印刷 / PDF保存」を押します。印刷ダイアログでプリンターを選ぶか、保存先で<strong>「PDFに保存」</strong>を選択します。用紙サイズや向きもプレビューで確認してください。</li>
+              <li>試合データはJSONでも書き出し、端末とは別の安全な保存先に保管してください。PDFは閲覧・配布用、JSONはこのアプリで復元するためのデータバックアップです。</li>
+            </ol>
+          </section>
+
+          <section class="manual-section manual-final-check">
+            <h3>試合前の最終チェック</h3>
+            <ul class="manual-checklist"><li>大会要項どおりのセット数・目標点・点差を設定した</li><li>チーム名・選手名・背番号・キャプテンを確認した</li><li>ローテーション/サーブ順と最初のサーブチームを確認した</li><li>審判員の氏名と所属を確認した</li><li>保存容量とJSONバックアップの保存先を確認した</li></ul>
+            <p class="notice">このアプリは記録支援ツールです。JVA公式システムとしての認定や、公式記録票との完全一致を保証するものではありません。公式大会で使用する前に、最新の競技規則・大会要項・記録票と照合し、実際の運用で十分に確認してください。</p>
+          </section>
         </article>
       </section>
 
