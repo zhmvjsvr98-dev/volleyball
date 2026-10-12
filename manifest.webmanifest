@@ -1,0 +1,19 @@
+{
+  "name": "JVA Volleyball Official Electronic Score Sheet",
+  "short_name": "JVA Score",
+  "description": "オフラインで利用できるバレーボール試合記録アプリ",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f5f1",
+  "theme_color": "#123c35",
+  "icons": [
+    {
+      "src": "./icons/volleyball.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
