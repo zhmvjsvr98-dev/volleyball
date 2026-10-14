@@ -285,6 +285,28 @@ function deleteTeamProfile(teamIndex) {
   clearError();
 }
 
+function clearTeamHistory() {
+  if (!store.teamProfiles.length) return;
+  if (!confirm("保存されているチーム履歴をすべて削除しますか？この操作は取り消せません。")) return;
+  store.teamProfiles = [];
+  store = buildStore(store.matches, store.teamProfiles);
+  scheduleSave(true);
+  renderTeamProfiles();
+  clearError();
+}
+
+function clearMatchHistory() {
+  if (!store.matches.length) return;
+  if (!confirm("保存されている試合履歴をすべて削除しますか？この操作は取り消せません。")) return;
+  store.matches = [];
+  currentMatch = createEmptyMatch();
+  store = buildStore(store.matches, store.teamProfiles);
+  scheduleSave(true);
+  renderHistory();
+  render();
+  clearError();
+}
+
 function loadTeamProfile(teamIndex) {
   if (matchHasStarted()) return showError("試合開始後はチーム履歴を読み込めません。");
   const selectedProfileId = byId(teamIndex === 0 ? "team-history-a" : "team-history-b").value;
@@ -1582,6 +1604,8 @@ function bindEvents() {
   byId("load-team-history-b").addEventListener("click", () => loadTeamProfile(1));
   byId("delete-team-history-a").addEventListener("click", () => deleteTeamProfile(0));
   byId("delete-team-history-b").addEventListener("click", () => deleteTeamProfile(1));
+  byId("clear-team-history").addEventListener("click", clearTeamHistory);
+  byId("clear-match-history").addEventListener("click", clearMatchHistory);
   byId("prestart-initial-server").addEventListener("change", () => {
     if (matchHasStarted()) return;
     currentMatch.sets[0].initialServiceTeamId = byId("prestart-initial-server").value;
