@@ -302,8 +302,14 @@
           <p class="notice">利用するセット数・目標点・交代条件等は必ず大会要項で確認してください。空欄や範囲外の値は保存されません。</p>
         </section>
         <section class="teams-grid setup-teams">
-          <label class="field">チームA<input id="team-name-setup-a" maxlength="60" placeholder="チーム名を入力"></label>
-          <label class="field">チームB<input id="team-name-setup-b" maxlength="60" placeholder="チーム名を入力"></label>
+          <div class="setup-team">
+            <label class="field">チームA<input id="team-name-setup-a" maxlength="60" placeholder="チーム名を入力"></label>
+            <label class="field">ユニフォーム色<input id="team-color-setup-a" type="color" aria-label="チームAのユニフォーム色"></label>
+          </div>
+          <div class="setup-team">
+            <label class="field">チームB<input id="team-name-setup-b" maxlength="60" placeholder="チーム名を入力"></label>
+            <label class="field">ユニフォーム色<input id="team-color-setup-b" type="color" aria-label="チームBのユニフォーム色"></label>
+          </div>
         </section>
       </section>
 
@@ -330,7 +336,6 @@
             </div>
           </div>
           <div class="output-actions team-history-cleanup"><button id="clear-team-history" class="button button-quiet danger-quiet" type="button">チーム履歴をすべて削除</button><button id="clear-match-history" class="button button-quiet danger-quiet" type="button">試合履歴をすべて削除</button></div>
-          </div>
         </section>
       </section>
 
@@ -396,18 +401,22 @@
             <span id="court-change-status" class="court-change-status">コートチェンジ条件: 未設定</span>
           </div>
           <div class="set-navigation"><div id="set-strip" class="set-strip" aria-label="セット状況"></div><div class="set-actions"><button id="next-set" class="button button-primary" type="button" hidden>次のセットを開始</button><button id="undo-event" class="button button-secondary" type="button">直前の記録を取り消す</button></div></div>
-          <div class="match-shortcuts"><button class="button button-secondary" data-go="events" type="button">ラリー・イベントを記録</button><button class="button button-secondary" data-go="scoresheet" type="button">スコアシートを見る</button></div>
+          <div class="match-shortcuts"><button id="toggle-match-event-entry" class="button button-secondary" type="button">ラリー・イベント入力を開く</button><button class="button button-secondary" data-go="scoresheet" type="button">スコアシートを見る</button></div>
         </section>
       </section>
 
       <section class="app-page" data-page-panel="events" hidden>
         <div class="page-heading"><div><span class="eyebrow">08. RALLY & EVENT LOG</span><h1>ラリー・イベント記録</h1><p>ラリー中の動作を1回ずつ記録し、得点に至る流れを後から確認できます。</p></div><button class="button button-secondary" data-go="match" type="button">試合画面へ戻る</button></div>
-        <section class="panel content-panel">
+        <section id="live-event-entry-panel" class="panel content-panel">
           <div class="event-tools">
             <section class="event-tool play-entry-tool"><h3>ラリー中のプレーを記録</h3>
               <p class="event-help">サーブ、レシーブ、トス、アタック、ブロック、ミスなどを発生順に記録します。選手と結果を選び、メモで状況を補足できます。</p>
               <div class="event-form play-entry-form">
-                <label class="field">チーム<select id="rally-team"></select></label>
+                <div class="field">
+                  <span>チーム</span>
+                  <div id="rally-team-group" class="button-grid compact-button-grid"></div>
+                  <select id="rally-team" hidden></select>
+                </div>
                 <div class="field">
                   <span>選手</span>
                   <div id="rally-player-group" class="button-grid compact-button-grid"></div>

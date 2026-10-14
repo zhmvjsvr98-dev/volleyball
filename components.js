@@ -25,6 +25,7 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   nameInput.maxLength = 60;
   nameInput.autocomplete = "off";
   nameInput.dataset.teamName = team.id;
+  nameInput.disabled = rosterLocked;
   nameLabel.append(nameInput);
 
   const colorLabel = element("label", "field");
@@ -34,6 +35,8 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   colorInput.value = team.uniformColor || "#1d4ed8";
   colorInput.dataset.teamColor = team.id;
   colorInput.title = "チームのユニフォーム色";
+  colorInput.setAttribute("aria-label", `${team.name}のユニフォーム色`);
+  colorInput.disabled = rosterLocked;
   colorLabel.append(colorInput);
 
   topFields.append(nameLabel, colorLabel);
@@ -57,6 +60,7 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
     input.value = team.staff?.[key] || "";
     input.dataset.teamStaffKey = key;
     input.dataset.teamId = team.id;
+    input.disabled = rosterLocked;
     field.append(input);
     staffWrap.append(field);
   });

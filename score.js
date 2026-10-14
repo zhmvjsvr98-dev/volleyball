@@ -53,6 +53,11 @@ export function usesCourtRotation(match) {
     && match.rules.rotationEnabled;
 }
 
+export function getCourtPlayerCount(match) {
+  if (match.rules.matchProfile === "beach") return 2;
+  return match.rules.matchProfile === "nine" ? 9 : 6;
+}
+
 export function getServingState(match, set) {
   let server = set.initialServiceTeamId || match.teams[0].id;
   const rotations = Object.fromEntries(match.teams.map((team) => [team.id, 0]));
@@ -75,13 +80,24 @@ export function getCurrentLineup(match, set, teamId) {
   const team = match.teams.find((item) => item.id === teamId);
   const lineup = set.startingLineups?.[teamId]?.length ? set.startingLineups[teamId] : team?.rotationLineup || [];
   const { rotations } = getServingState(match, set);
-  if (!usesCourtRotation(match)) {
-    return Array.from({ length: match.rules.matchProfile === "nine" ? 9 : 6 }, (_, index) => lineup[index] || "");
-  }
-  const count = match.rules.matchProfile === "nine" ? 9 : 6;
+  const count = getCourtPlayerCount(match);
   const normalized = Array.from({ length: count }, (_, index) => lineup[index] || "");
-  const turns = (rotations[teamId] || 0) % count;
-  return turns ? [...normalized.slice(turns), ...normalized.slice(0, turns)] : normalized;
+  if (usesCourtRotation(match)) {
+    const turns = (rotations[teamId] || 0) % count;
+    if (turns) normalized.push(...normalized.splice(0, turns));
+  }
+
+  const findPlayer = (label) => team?.players.find((player) =>
+    player.number === String(label) || player.name.trim() === String(label).trim());
+  for (const event of set.events) {
+    if (event.teamId !== teamId || !["substitution", "libero-substitution"].includes(event.type)) continue;
+    const outgoing = findPlayer(event.playerOut);
+    const incoming = findPlayer(event.playerIn);
+    if (!outgoing || !incoming || normalized.includes(incoming.id)) continue;
+    const position = normalized.indexOf(outgoing.id);
+    if (position >= 0) normalized[position] = incoming.id;
+  }
+  return normalized;
 }
 
 export function getEventDescription(match, event) {

@@ -13,6 +13,10 @@ function isText(value, maxLength) {
   return typeof value === "string" && value.length <= maxLength;
 }
 
+function isColor(value) {
+  return typeof value === "string" && /^#[\da-f]{6}$/i.test(value);
+}
+
 function validatePlayer(player) {
   return isPlainObject(player)
     && isText(player.id, 80)
@@ -31,7 +35,7 @@ function validateTeamProfile(profile) {
     || !Array.isArray(profile.players) || profile.players.length > 42
     || !profile.players.every(validatePlayer)
     || !Array.isArray(profile.rotationLineup) || profile.rotationLineup.length > 9
-    || !isText(profile.uniformColor || "#1d4ed8", 20)) return false;
+    || !isColor(profile.uniformColor || "#1d4ed8")) return false;
   const playerIds = profile.players.map((player) => player.id);
   const numbers = profile.players.map((player) => player.number);
   const lineup = profile.rotationLineup.filter(Boolean);
@@ -139,7 +143,7 @@ export function validateMatch(match) {
     if (!isPlainObject(team) || !isText(team.id, 80) || !isText(team.name, 60)
       || !Array.isArray(team.players) || team.players.length > 42
       || !team.players.every(validatePlayer)
-      || !isText(team.uniformColor || "#1d4ed8", 20)
+      || !isColor(team.uniformColor || "#1d4ed8")
       || !isPlainObject(team.staff)) return false;
     if (teamIds.has(team.id)) return false;
     teamIds.add(team.id);

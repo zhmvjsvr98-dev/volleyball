@@ -1,6 +1,6 @@
 import { renderTeamCard, makeEventRow } from "./components.js";
 import {
-  canScore, getCurrentLineup, getDecidingSetCourtChangePoint, getEventDescription, getScore, getSetResult, getSetTarget, getSetWins, getServingState, isMatchComplete, usesCourtRotation,
+  canScore, getCourtPlayerCount, getCurrentLineup, getDecidingSetCourtChangePoint, getEventDescription, getScore, getSetResult, getSetTarget, getSetWins, getServingState, isMatchComplete, usesCourtRotation,
 } from "./score.js";
 import { buildStore, createEmptyMatch, createId, readStore, validateImport, writeStore } from "./storage.js";
 
@@ -68,6 +68,9 @@ function showError(message) {
   elements.error.textContent = message;
   elements.error.hidden = false;
 }
+for (const [id, teamIndex] of [["team-color-setup-a", 0], ["team-color-setup-b", 1]]) {
+  byId(id).addEventListener("input", (event) => updateTeamColor(currentMatch.teams[teamIndex].id, event.target.value));
+}
 
 function clearError() {
   elements.error.textContent = "";
@@ -104,6 +107,35 @@ function getTeam(teamId) {
 
 function getTeamDisplayColor(team) {
   return team?.uniformColor || "#1d4ed8";
+}
+
+function applyTeamColors() {
+  currentMatch.teams.forEach((team, index) => {
+    const preferredColor = getTeamDisplayColor(team);
+    const color = /^#[\da-f]{6}$/i.test(preferredColor) ? preferredColor : (index === 0 ? "#1d4ed8" : "#f97316");
+    const className = index === 0 ? "team-a" : "team-b";
+    document.querySelectorAll(`.${className}`).forEach((element) => {
+      element.style.setProperty("--team-accent", color);
+    });
+  });
+}
+
+function updateTeamColor(teamId, color) {
+  const team = getTeam(teamId);
+  if (!team || !/^#[\da-f]{6}$/i.test(color)) {
+    showError("ユニフォーム色を正しく選択してください。");
+    return;
+  }
+  team.uniformColor = color;
+  const teamIndex = currentMatch.teams.indexOf(team);
+  const setupColor = byId(teamIndex === 0 ? "team-color-setup-a" : "team-color-setup-b");
+  if (setupColor) setupColor.value = color;
+  document.querySelectorAll("input[data-team-color]").forEach((input) => {
+    if (input.dataset.teamColor === teamId) input.value = color;
+  });
+  renderPrintableScoreSheet();
+  applyTeamColors();
+  scheduleSave();
 }
 
 function getCourtPlayers(teamId) {
@@ -205,9 +237,15 @@ function populateForm() {
   });
   const locked = matchHasStarted();
   Object.values(ruleFields).forEach((id) => { byId(id).disabled = locked; });
+  byId("team-name-setup-a").disabled = locked;
+  byId("team-name-setup-b").disabled = locked;
+  byId("team-color-setup-a").disabled = locked;
+  byId("team-color-setup-b").disabled = locked;
   byId("rotation-enabled").disabled = locked || currentMatch.rules.matchProfile === "nine" || currentMatch.rules.category === "小学生";
   byId("team-name-setup-a").value = currentMatch.teams[0].name;
   byId("team-name-setup-b").value = currentMatch.teams[1].name;
+  byId("team-color-setup-a").value = currentMatch.teams[0].uniformColor || "#1d4ed8";
+  byId("team-color-setup-b").value = currentMatch.teams[1].uniformColor || "#f97316";
 }
 
 function renderHistory() {
@@ -336,7 +374,7 @@ function renderTeams() {
     renderTeamCard(elements.teamCards[index], team, index, currentMatch.rules.rosterLimit, rosterLocked);
     elements.teamCards[index].classList.add(index === 0 ? "team-a" : "team-b");
   });
-  for (const id of ["sub-team", "sanction-team", "rally-team", "challenge-team"]) {
+  for (const id of ["sub-team", "libero-team", "sanction-team", "rally-team", "challenge-team"]) {
     const select = byId(id);
     const previous = select.value;
     select.replaceChildren();
@@ -523,7 +561,7 @@ function renderRotationView(containerId, set, editable) {
   container.replaceChildren();
   const courtRotation = usesCourtRotation(currentMatch);
   const servingState = getServingState(currentMatch, set);
-  const slots = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
+  const slots = getCourtPlayerCount(currentMatch);
   const serviceIndex = (team) => (servingState.serviceTurns[team.id] - 1 + slots) % slots;
   const positionLabels = currentMatch.rules.matchProfile === "nine"
     ? ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ"]
@@ -660,9 +698,25 @@ function renderRallyEntryForm() {
   const selectedTeamId = currentMatch.teams.some((team) => team.id === teamSelect.value)
     ? teamSelect.value : currentMatch.teams[0].id;
   teamSelect.value = selectedTeamId;
+  const teamGroup = byId("rally-team-group");
+  teamGroup?.replaceChildren();
+  currentMatch.teams.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `mini-select-button${item.id === selectedTeamId ? " selected" : ""}`;
+    button.dataset.rallyTeam = item.id;
+    button.textContent = item.name || `チーム ${index === 0 ? "A" : "B"}`;
+    button.addEventListener("click", () => {
+      teamSelect.value = item.id;
+      renderRallyEntryForm();
+    });
+    teamGroup?.append(button);
+  });
 
   const team = getTeam(selectedTeamId);
   const activePlayers = getCourtPlayers(selectedTeamId);
+  const playerSelect = byId("rally-player");
+  const previousPlayerId = playerSelect?.value;
   const playerGroup = byId("rally-player-group");
   if (playerGroup) {
     playerGroup.replaceChildren();
@@ -675,12 +729,12 @@ function renderRallyEntryForm() {
       activePlayers.forEach((player) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "mini-select-button";
+        button.className = `mini-select-button${(previousPlayerId === player.id || (!activePlayers.some((item) => item.id === previousPlayerId) && activePlayers[0]?.id === player.id)) ? " selected" : ""}`;
         button.textContent = `#${player.number} ${player.name}`;
         button.dataset.playerId = player.id;
         button.dataset.teamId = team.id;
         button.addEventListener("click", () => {
-          document.querySelectorAll(".mini-select-button[data-team-id='" + team.id + "']").forEach((node) => node.classList.toggle("selected", node === button));
+          playerGroup.querySelectorAll(".mini-select-button[data-team-id]").forEach((node) => node.classList.toggle("selected", node === button));
           const playerSelect = byId("rally-player");
           if (playerSelect) playerSelect.value = player.id;
         });
@@ -688,7 +742,6 @@ function renderRallyEntryForm() {
       });
     }
   }
-  const playerSelect = byId("rally-player");
   if (playerSelect) {
     playerSelect.replaceChildren();
     activePlayers.forEach((player) => {
@@ -697,7 +750,8 @@ function renderRallyEntryForm() {
       option.textContent = `#${player.number} ${player.name}`;
       playerSelect.append(option);
     });
-    playerSelect.value = activePlayers[0]?.id || "";
+    playerSelect.value = activePlayers.some((player) => player.id === previousPlayerId)
+      ? previousPlayerId : activePlayers[0]?.id || "";
   }
 
   const kindSelect = byId("rally-kind");
@@ -705,12 +759,6 @@ function renderRallyEntryForm() {
   kindGroup?.querySelectorAll("button").forEach((button) => {
     const selected = (kindSelect ? kindSelect.value : button.dataset.value) === button.dataset.value;
     button.classList.toggle("selected", selected);
-    button.addEventListener("click", () => {
-      if (kindSelect) kindSelect.value = button.dataset.value;
-      kindGroup.querySelectorAll("button").forEach((node) => {
-        node.classList.toggle("selected", node === button);
-      });
-    });
   });
 
   const outcomeSelect = byId("rally-outcome");
@@ -718,12 +766,6 @@ function renderRallyEntryForm() {
   outcomeGroup?.querySelectorAll("button").forEach((button) => {
     const selected = (outcomeSelect ? outcomeSelect.value : button.dataset.value) === button.dataset.value;
     button.classList.toggle("selected", selected);
-    button.addEventListener("click", () => {
-      if (outcomeSelect) outcomeSelect.value = button.dataset.value;
-      outcomeGroup.querySelectorAll("button").forEach((node) => {
-        node.classList.toggle("selected", node === button);
-      });
-    });
   });
 
   const recordButton = byId("record-rally-play");
@@ -736,8 +778,10 @@ function showScoreDialog(teamId) {
   const team = getTeam(teamId);
   const opponent = currentMatch.teams.find((item) => item.id !== teamId);
   byId("scoring-team-label").textContent = `得点チーム: ${team.name}`;
-  fillPlayerSelect(byId("score-player"), team.players);
-  fillPlayerSelect(byId("fault-player"), opponent.players);
+  const scoringPlayers = getCourtPlayers(team.id);
+  const opposingPlayers = getCourtPlayers(opponent.id);
+  fillPlayerSelect(byId("score-player"), scoringPlayers, scoringPlayers[0]?.id || "");
+  fillPlayerSelect(byId("fault-player"), opposingPlayers, opposingPlayers[0]?.id || "");
   byId("score-play-type").value = "attack";
   byId("score-player").disabled = false;
   byId("score-note").value = "";
@@ -791,8 +835,8 @@ function recordRallyPlay() {
   const playerId = byId("rally-player").value || null;
   const playKind = practicalKind;
   const outcome = practicalOutcome;
-  if (!team || (playerId && !team.players.some((player) => player.id === playerId))) {
-    showError("プレーをした選手を選択してください。");
+  if (!team || (playerId && !getCourtPlayers(team.id).some((player) => player.id === playerId))) {
+    showError("プレーをしたコート内の選手を選択してください。");
     return;
   }
   if (!rallyKinds.includes(playKind) || !rallyOutcomes.includes(outcome)) {
@@ -825,8 +869,22 @@ function render() {
   renderCourtChange();
   renderMatchTimer();
   renderRotation();
+  applyTeamColors();
   byId("undo-event").disabled = currentSet().events.length === 0;
   renderPageSummaries();
+}
+
+function placeLiveEventEntry() {
+  const panel = byId("live-event-entry-panel");
+  const matchPanel = document.querySelector('[data-page-panel="match"] .scoring-panel');
+  if (!panel || !matchPanel || panel.parentElement === matchPanel) return;
+  const details = document.createElement("details");
+  details.id = "live-event-entry";
+  details.className = "live-event-entry";
+  const summary = document.createElement("summary");
+  summary.textContent = "ラリー・イベント・交代などを記録";
+  details.append(summary, panel);
+  matchPanel.append(details);
 }
 
 function appendSummaryRow(container, label, value) {
@@ -1102,7 +1160,8 @@ function renderPrintableScoreSheet() {
   const heading = document.createElement("h1");
   heading.textContent = "バレーボール公式記録票";
   const format = document.createElement("p");
-  format.textContent = `${currentMatch.rules.matchProfile === "nine" ? "9人制" : "6人制"}・${currentMatch.rules.bestOf}セットマッチ / ${currentMatch.rules.category} ${currentMatch.rules.division}`;
+  const profileLabels = { six: "6人制", nine: "9人制", beach: "ビーチバレー", soft: "ソフトバレー" };
+  format.textContent = `${profileLabels[currentMatch.rules.matchProfile]}・${currentMatch.rules.bestOf}セットマッチ / ${currentMatch.rules.category} ${currentMatch.rules.division}`;
   const tournament = document.createElement("p");
   tournament.textContent = info.tournamentName || "大会名未入力";
   title.append(heading, format, tournament);
@@ -1132,7 +1191,7 @@ function renderPrintableScoreSheet() {
 
   appendPrintTeamColumns(matchDocument, "チーム構成・登録選手", currentMatch.teams,
     (team) => team.players.map((player) => [
-      player.number, player.name, player.isCaptain ? "キャプテン" : "選手",
+      player.number, player.name, player.isCaptain ? "キャプテン" : player.isLibero ? "リベロ" : "選手",
     ]), ["背番号", "氏名", "役割"]);
 
   const statsHeading = document.createElement("h2");
@@ -1149,7 +1208,7 @@ function renderPrintableScoreSheet() {
       currentMatch.teams, (team) => positionNames.map((position, index) => {
         const player = team.players.find((item) => item.id === set.startingLineups[team.id]?.[index]);
         return [position, player?.number || "—", player?.name || "—"];
-      }), ["位置 / 順番", "背番号", "氏名"]);
+      }).slice(0, getCourtPlayerCount(currentMatch)), ["位置 / 順番", "背番号", "氏名"]);
   });
 
   appendPrintSection(matchDocument, "審判員・記録員", ["役割", "氏名", "都道府県 / 国名"], officialRoles.map(([role, label]) => [
@@ -1233,7 +1292,7 @@ function renderConfirmationRotation() {
 function getRequiredStartChecks() {
   const [teamA, teamB] = currentMatch.teams;
   const info = currentMatch.matchInfo;
-  const requiredSlots = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
+  const requiredSlots = getCourtPlayerCount(currentMatch);
   const startChecks = [
     ["大会名", Boolean(info.tournamentName.trim())],
     ["試合日", Boolean(info.matchDate)],
@@ -1315,7 +1374,7 @@ function renderPageSummaries() {
   for (const [label, value] of [
     ["大会名", info.tournamentName], ["試合日", info.matchDate], ["会場", info.venue],
     ["コート・試合番号", [info.court, info.matchNumber].filter(Boolean).join(" / ")],
-    ["試合形式", `${currentMatch.rules.matchProfile === "nine" ? "9人制" : "6人制"} / ${currentMatch.rules.bestOf}セット`],
+    ["試合形式", `${{ six: "6人制", nine: "9人制", beach: "ビーチバレー", soft: "ソフトバレー" }[currentMatch.rules.matchProfile]} / ${currentMatch.rules.bestOf}セット`],
     ["ラウンド", info.round], ["カテゴリー・種別", `${currentMatch.rules.category} / ${currentMatch.rules.division}`],
     ["ファーストレフェリー", info.officials.firstReferee.name],
     ["スコアラー", info.officials.scorer.name],
@@ -1386,8 +1445,12 @@ function addEvent(event) {
   // 得点・交代などを共通の時系列イベントとして保存するため、取り消しと監査が容易です。
   const now = new Date().toISOString();
   const set = currentSet();
-  const snapshot = `${getScore(set, currentMatch.teams[0].id)}-${getScore(set, currentMatch.teams[1].id)}`;
-  const appendEvent = (item) => set.events.push({ id: createId(), time: now, currentScore: snapshot, ...item });
+  const appendEvent = (item) => {
+    const scoreFor = (teamId) => getScore(set, teamId)
+      + (item.type === "score" && item.teamId === teamId ? item.delta : 0);
+    const snapshot = `${scoreFor(currentMatch.teams[0].id)}-${scoreFor(currentMatch.teams[1].id)}`;
+    set.events.push({ id: createId(), time: now, currentScore: snapshot, ...item });
+  };
   appendEvent(event);
   if (event.type === "score") {
     set.startedAt ||= now;
@@ -1466,6 +1529,8 @@ function undoLastEvent() {
   if (!set.events.length) return;
   // 派生得点はイベント列から再計算するため、直前イベントを取り除くだけで状態も戻ります。
   const removed = set.events.pop();
+  if (!getSetResult(currentMatch, set)) set.endedAt = "";
+  if (!isMatchComplete(currentMatch)) currentMatch.matchInfo.endedAt = "";
   render();
   scheduleSave(true);
   elements.announcer.textContent = `${getEventDescription(currentMatch, removed)}を取り消しました`;
@@ -1640,6 +1705,16 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    const quickChoice = target.closest("#rally-kind-group [data-value], #rally-outcome-group [data-value]");
+    if (quickChoice instanceof HTMLButtonElement) {
+      const group = quickChoice.closest("#rally-kind-group, #rally-outcome-group");
+      const select = byId(group?.id === "rally-kind-group" ? "rally-kind" : "rally-outcome");
+      if (select) select.value = quickChoice.dataset.value;
+      group?.querySelectorAll("button[data-value]").forEach((button) => {
+        button.classList.toggle("selected", button === quickChoice);
+      });
+      return;
+    }
     const scoreButton = target.closest("[data-score-team]");
     if (scoreButton) {
       const delta = Number(scoreButton.dataset.delta);
@@ -1750,10 +1825,14 @@ function bindEvents() {
     const team = getTeam(teamId);
     const playerOut = byId("sub-out").value.trim();
     const playerIn = byId("sub-in").value.trim();
+    const outgoing = team.players.find((player) => player.number === playerOut);
+    const incoming = team.players.find((player) => player.number === playerIn);
+    const lineup = getCurrentLineup(currentMatch, currentSet(), teamId);
     if (!/^\d{1,3}$/.test(playerOut) || !/^\d{1,3}$/.test(playerIn)
-      || !team.players.some((player) => player.number === playerOut)
-      || !team.players.some((player) => player.number === playerIn)) {
-      showError("交代する選手の背番号を登録済み選手から指定してください。");
+      || !outgoing || !incoming || outgoing.id === incoming.id
+      || outgoing.isLibero || incoming.isLibero
+      || !lineup.includes(outgoing.id) || lineup.includes(incoming.id)) {
+      showError("交代は、コート内の選手から登録済みの控え選手へ指定してください。リベロ交代は専用欄を使用してください。");
       return;
     }
     const substitutions = currentSet().events.filter((event) => event.type === "substitution" && event.teamId === teamId).length;
@@ -1764,6 +1843,44 @@ function bindEvents() {
     addEvent({ type: "substitution", teamId, playerOut, playerIn });
     byId("sub-out").value = "";
     byId("sub-in").value = "";
+  });
+  byId("record-libero-substitution").addEventListener("click", () => {
+    if (!canScore(currentMatch)) return;
+    const teamId = byId("libero-team").value;
+    const team = getTeam(teamId);
+    const playerOut = byId("libero-out").value.trim();
+    const playerIn = byId("libero-in").value.trim();
+    const outgoing = team.players.find((player) => player.number === playerOut || player.name === playerOut);
+    const incoming = team.players.find((player) => player.number === playerIn || player.name === playerIn);
+    const lineup = getCurrentLineup(currentMatch, currentSet(), teamId);
+    if (!outgoing || !incoming) {
+      showError("入力された背番号または氏名がチーム登録にありません。");
+      return;
+    }
+    if (outgoing.id === incoming.id) {
+      showError("退く選手と入る選手は別の選手を指定してください。");
+      return;
+    }
+    if (outgoing.isLibero === incoming.isLibero) {
+      showError("リベロ交代では、リベロ選手と交代対象選手を1名ずつ指定してください。");
+      return;
+    }
+    if (!lineup.includes(outgoing.id)) {
+      showError("退く選手は現在コート内にいる選手を指定してください。");
+      return;
+    }
+    if (lineup.includes(incoming.id)) {
+      showError("入る選手は現在コート外にいる選手を指定してください。");
+      return;
+    }
+    addEvent({
+      type: "libero-substitution",
+      teamId,
+      playerOut: outgoing.number,
+      playerIn: incoming.number,
+    });
+    byId("libero-out").value = "";
+    byId("libero-in").value = "";
   });
   byId("record-sanction").addEventListener("click", () => {
     if (!canScore(currentMatch)) return;
@@ -1809,6 +1926,12 @@ function bindEvents() {
     addDetailedScore();
   });
   byId("cancel-score-detail").addEventListener("click", () => elements.scoreDialog.close());
+  byId("toggle-match-event-entry").addEventListener("click", () => {
+    const details = byId("live-event-entry");
+    if (!details) return showError("試合中のイベント入力欄を読み込めませんでした。");
+    details.open = true;
+    details.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   byId("initial-server").addEventListener("change", () => {
     if (matchHasStarted()) return;
     currentSet().initialServiceTeamId = byId("initial-server").value;
@@ -1819,7 +1942,7 @@ function bindEvents() {
     const select = event.target;
     if (!(select instanceof HTMLSelectElement) || !select.matches("[data-rotation-team]")) return;
     const team = getTeam(select.dataset.rotationTeam);
-    const count = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
+    const count = getCourtPlayerCount(currentMatch);
     const position = Number(select.dataset.currentPosition);
     const { rotations } = getServingState(currentMatch, currentSet());
     const openingPosition = (position + (rotations[team.id] || 0)) % count;
@@ -1838,6 +1961,12 @@ function bindEvents() {
     renderPageSummaries();
     scheduleSave(true);
   });
+  document.addEventListener("input", (event) => {
+    const colorInput = event.target;
+    if (colorInput instanceof HTMLInputElement && colorInput.matches("[data-team-color]")) {
+      updateTeamColor(colorInput.dataset.teamColor, colorInput.value);
+    }
+  });
   byId("start-match").addEventListener("click", () => {
     if (matchHasStarted()) return navigateTo("match");
     const missing = getMissingStartRequirements();
@@ -1851,7 +1980,7 @@ function bindEvents() {
       team.id, [...team.rotationLineup],
     ]));
     currentMatch.matchInfo.startedAt = startedAt;
-    currentMatch.matchInfo.endedAt = null;
+    currentMatch.matchInfo.endedAt = "";
     render();
     scheduleSave(true);
     navigateTo("match");
@@ -1986,6 +2115,7 @@ function initialize() {
       store.matches = [currentMatch];
       if (!storageRecoveryRequired) writeStore(store);
     }
+    placeLiveEventEntry();
     renderHistory();
     render();
     bindEvents();
