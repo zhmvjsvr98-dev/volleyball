@@ -253,7 +253,12 @@
           <div class="section-heading"><div><span class="eyebrow">COMPETITION PROFILE</span><h2>大会・競技条件</h2></div></div>
           <div class="rules-grid">
             <label class="field">競技形式
-              <select id="match-profile"><option value="six">6人制</option><option value="nine">9人制</option></select>
+              <select id="match-profile">
+                <option value="six">6人制</option>
+                <option value="nine">9人制</option>
+                <option value="beach">ビーチバレー</option>
+                <option value="soft">ソフトバレー</option>
+              </select>
             </label>
             <label class="field">カテゴリー
               <select id="category"><option>一般</option><option>大学</option><option>高校</option><option>中学校</option><option>小学生</option><option>マスターズ</option><option>その他</option></select>
@@ -316,12 +321,12 @@
             <div class="team-history-card">
               <h3>チームA</h3>
               <label class="field">保存済みチーム履歴<select id="team-history-a"></select></label>
-              <div class="output-actions"><button id="save-team-history-a" class="button button-secondary" type="button">現在のチームAを履歴に保存</button><button id="load-team-history-a" class="button button-primary" type="button">履歴から読み込む</button></div>
+              <div class="output-actions"><button id="save-team-history-a" class="button button-secondary" type="button">現在のチームAを履歴に保存</button><button id="load-team-history-a" class="button button-primary" type="button">履歴から読み込む</button><button id="delete-team-history-a" class="button button-quiet danger-quiet" type="button">履歴を削除</button></div>
             </div>
             <div class="team-history-card">
               <h3>チームB</h3>
               <label class="field">保存済みチーム履歴<select id="team-history-b"></select></label>
-              <div class="output-actions"><button id="save-team-history-b" class="button button-secondary" type="button">現在のチームBを履歴に保存</button><button id="load-team-history-b" class="button button-primary" type="button">履歴から読み込む</button></div>
+              <div class="output-actions"><button id="save-team-history-b" class="button button-secondary" type="button">現在のチームBを履歴に保存</button><button id="load-team-history-b" class="button button-primary" type="button">履歴から読み込む</button><button id="delete-team-history-b" class="button button-quiet danger-quiet" type="button">履歴を削除</button></div>
             </div>
           </div>
         </section>
@@ -401,27 +406,57 @@
               <p class="event-help">サーブ、レシーブ、トス、アタック、ブロック、ミスなどを発生順に記録します。選手と結果を選び、メモで状況を補足できます。</p>
               <div class="event-form play-entry-form">
                 <label class="field">チーム<select id="rally-team"></select></label>
-                <label class="field">選手<select id="rally-player"></select></label>
-                <label class="field">動作<select id="rally-kind">
-                  <option value="serve">サーブ</option>
-                  <option value="reception">サーブレシーブ</option>
-                  <option value="set">トス</option>
-                  <option value="attack">アタック</option>
-                  <option value="backAttack">バックアタック</option>
-                  <option value="block">ブロック</option>
-                  <option value="error">ミス</option>
-                  <option value="other">その他</option>
-                </select></label>
-                <label class="field">結果<select id="rally-outcome">
-                  <option value="success">成功・継続</option>
-                  <option value="point">得点</option>
-                  <option value="error">失点・ミス</option>
-                  <option value="touch">タッチ・継続</option>
-                  <option value="effective">効果あり</option>
-                  <option value="excellent">レシーブ優</option>
-                  <option value="good">レシーブ良</option>
-                  <option value="other">その他</option>
-                </select></label>
+                <div class="field">
+                  <span>選手</span>
+                  <div id="rally-player-group" class="button-grid compact-button-grid"></div>
+                  <select id="rally-player" hidden></select>
+                </div>
+                <div class="field">
+                  <span>動作</span>
+                  <div id="rally-kind-group" class="button-grid compact-button-grid">
+                    <button type="button" class="mini-select-button selected" data-value="serve">サーブ</button>
+                    <button type="button" class="mini-select-button" data-value="reception">レシーブ</button>
+                    <button type="button" class="mini-select-button" data-value="set">トス</button>
+                    <button type="button" class="mini-select-button" data-value="attack">アタック</button>
+                    <button type="button" class="mini-select-button" data-value="backAttack">バック</button>
+                    <button type="button" class="mini-select-button" data-value="block">ブロック</button>
+                    <button type="button" class="mini-select-button" data-value="error">ミス</button>
+                    <button type="button" class="mini-select-button" data-value="other">その他</button>
+                  </div>
+                  <select id="rally-kind" hidden>
+                    <option value="serve" selected>サーブ</option>
+                    <option value="reception">レシーブ</option>
+                    <option value="set">トス</option>
+                    <option value="attack">アタック</option>
+                    <option value="backAttack">バック</option>
+                    <option value="block">ブロック</option>
+                    <option value="error">ミス</option>
+                    <option value="other">その他</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <span>結果</span>
+                  <div id="rally-outcome-group" class="button-grid compact-button-grid">
+                    <button type="button" class="mini-select-button selected" data-value="success">成功</button>
+                    <button type="button" class="mini-select-button" data-value="point">得点</button>
+                    <button type="button" class="mini-select-button" data-value="error">失点</button>
+                    <button type="button" class="mini-select-button" data-value="touch">タッチ</button>
+                    <button type="button" class="mini-select-button" data-value="effective">効果</button>
+                    <button type="button" class="mini-select-button" data-value="excellent">優</button>
+                    <button type="button" class="mini-select-button" data-value="good">良</button>
+                    <button type="button" class="mini-select-button" data-value="other">その他</button>
+                  </div>
+                  <select id="rally-outcome" hidden>
+                    <option value="success" selected>成功</option>
+                    <option value="point">得点</option>
+                    <option value="error">失点</option>
+                    <option value="touch">タッチ</option>
+                    <option value="effective">効果</option>
+                    <option value="excellent">優</option>
+                    <option value="good">良</option>
+                    <option value="other">その他</option>
+                  </select>
+                </div>
                 <label class="field play-note-field">内容・備考（任意）<input id="rally-note" maxlength="120" placeholder="例: ネットにかけた、二段トス"></label>
                 <button id="record-rally-play" class="button button-primary" type="button">ラリーの動作を記録</button>
               </div>
@@ -444,6 +479,12 @@
               <label class="field">退く選手<input id="sub-out" inputmode="numeric" maxlength="3" placeholder="背番号"></label>
               <label class="field">入る選手<input id="sub-in" inputmode="numeric" maxlength="3" placeholder="背番号"></label>
               <button id="record-substitution" class="button button-secondary" type="button">交代を記録</button>
+            </div></section>
+            <section class="event-tool"><h3>リベロ交代</h3><div class="event-form">
+              <label class="field">チーム<select id="libero-team"></select></label>
+              <label class="field">退くリベロ<input id="libero-out" maxlength="20" placeholder="背番号または氏名"></label>
+              <label class="field">入るリベロ<input id="libero-in" maxlength="20" placeholder="背番号または氏名"></label>
+              <button id="record-libero-substitution" class="button button-secondary" type="button">リベロ交代を記録</button>
             </div></section>
             <section class="event-tool"><h3>警告・退場</h3><div class="event-form">
               <label class="field">チーム<select id="sanction-team"></select></label>

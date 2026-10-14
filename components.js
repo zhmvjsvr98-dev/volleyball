@@ -17,6 +17,7 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   score.dataset.teamScore = team.id;
   head.append(title, score);
 
+  const topFields = element("div", "team-top-fields");
   const nameLabel = element("label", "field");
   nameLabel.append(document.createTextNode("チーム名"));
   const nameInput = element("input", "team-name-input");
@@ -25,8 +26,41 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   nameInput.autocomplete = "off";
   nameInput.dataset.teamName = team.id;
   nameLabel.append(nameInput);
-  head.append(nameLabel);
+
+  const colorLabel = element("label", "field");
+  colorLabel.append(document.createTextNode("ユニフォーム色"));
+  const colorInput = element("input");
+  colorInput.type = "color";
+  colorInput.value = team.uniformColor || "#1d4ed8";
+  colorInput.dataset.teamColor = team.id;
+  colorInput.title = "チームのユニフォーム色";
+  colorLabel.append(colorInput);
+
+  topFields.append(nameLabel, colorLabel);
+  head.append(topFields);
   container.append(head);
+
+  const staffWrap = element("div", "team-staff-grid");
+  const staffRoles = [
+    ["gm", "GM"], ["headCoach", "ヘッドコーチ"], ["coach1", "コーチ1"], ["coach2", "コーチ2"],
+    ["swingCoach", "スイングコーチ"], ["performanceAnalyst", "パフォーマンスアナリスト"],
+    ["trainer1", "トレーナー1"], ["trainer2", "トレーナー2"], ["manager1", "マネージャー1"],
+    ["manager2", "マネージャー2"], ["doctor1", "ドクター1"], ["doctor2", "ドクター2"],
+  ];
+  staffRoles.forEach(([key, label]) => {
+    const field = element("label", "field team-staff-item");
+    field.append(document.createTextNode(label));
+    const input = element("input");
+    input.type = "text";
+    input.maxLength = 40;
+    input.placeholder = label;
+    input.value = team.staff?.[key] || "";
+    input.dataset.teamStaffKey = key;
+    input.dataset.teamId = team.id;
+    field.append(input);
+    staffWrap.append(field);
+  });
+  container.append(staffWrap);
 
   const tableWrap = element("div", "roster-table-wrap");
   const table = element("table", "roster-table");
@@ -41,8 +75,9 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
     row.append(element("td", "", player.number || "—"));
     const nameCell = element("td", "", player.name);
     if (player.isCaptain) nameCell.append(element("span", "captain-tag", "C"));
+    if (player.isLibero) nameCell.append(element("span", "captain-tag", "L"));
     row.append(nameCell);
-    row.append(element("td", "", player.isCaptain ? "キャプテン" : "選手"));
+    row.append(element("td", "", player.isCaptain ? "キャプテン" : player.isLibero ? "リベロ" : "選手"));
     const removeCell = element("td");
     const remove = element("button", "remove-player", "×");
     remove.type = "button";
@@ -69,11 +104,16 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   captainCheck.type = "checkbox";
   captainCheck.name = "captain";
   captainLabel.append(captainCheck, document.createTextNode("キャプテン"));
+  const liberoLabel = element("label", "check-field");
+  const liberoCheck = element("input");
+  liberoCheck.type = "checkbox";
+  liberoCheck.name = "libero";
+  liberoLabel.append(liberoCheck, document.createTextNode("リベロ"));
   const addButton = element("button", "button button-secondary", "選手を追加");
   addButton.type = "submit";
   addButton.disabled = rosterLocked || team.players.length >= rosterLimit;
   form.querySelectorAll("input").forEach((input) => { input.disabled = rosterLocked; });
-  form.append(numberLabel, namePlayerLabel, captainLabel, addButton);
+  form.append(numberLabel, namePlayerLabel, captainLabel, liberoLabel, addButton);
   container.append(form);
 }
 

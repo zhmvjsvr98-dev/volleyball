@@ -21,7 +21,8 @@ function validatePlayer(player) {
     && typeof player.name === "string"
     && player.name.trim().length > 0
     && player.name.length <= 60
-    && typeof player.isCaptain === "boolean";
+    && typeof player.isCaptain === "boolean"
+    && typeof player.isLibero === "boolean";
 }
 
 function validateTeamProfile(profile) {
@@ -29,7 +30,8 @@ function validateTeamProfile(profile) {
     || !profile.name.trim() || !isText(profile.savedAt, 40)
     || !Array.isArray(profile.players) || profile.players.length > 42
     || !profile.players.every(validatePlayer)
-    || !Array.isArray(profile.rotationLineup) || profile.rotationLineup.length > 9) return false;
+    || !Array.isArray(profile.rotationLineup) || profile.rotationLineup.length > 9
+    || !isText(profile.uniformColor || "#1d4ed8", 20)) return false;
   const playerIds = profile.players.map((player) => player.id);
   const numbers = profile.players.map((player) => player.number);
   const lineup = profile.rotationLineup.filter(Boolean);
@@ -89,6 +91,9 @@ function validateEvent(event, validTeamIds) {
   if (event.type === "substitution") {
     return isText(event.playerOut, 3) && isText(event.playerIn, 3);
   }
+  if (event.type === "libero-substitution") {
+    return (event.playerOut === null || isText(event.playerOut, 20)) && (event.playerIn === null || isText(event.playerIn, 20));
+  }
   if (event.type === "sanction") {
     return isText(event.player, 20)
       && ["warning", "penalty", "expulsion", "disqualification"].includes(event.sanctionType);
@@ -115,7 +120,7 @@ export function validateMatch(match) {
 
   const rules = match.rules;
   if (![3, 5].includes(rules.bestOf)
-    || !["six", "nine"].includes(rules.matchProfile)
+    || !["six", "nine", "beach", "soft"].includes(rules.matchProfile)
     || !isText(rules.category, 30) || !isText(rules.division, 20) || !isText(rules.note, 240)
     || !Array.isArray(rules.setTargets) || rules.setTargets.length !== 5
     || !rules.setTargets.every((target) => Number.isInteger(target) && target >= 1 && target <= 99)
@@ -133,7 +138,9 @@ export function validateMatch(match) {
   for (const team of match.teams) {
     if (!isPlainObject(team) || !isText(team.id, 80) || !isText(team.name, 60)
       || !Array.isArray(team.players) || team.players.length > 42
-      || !team.players.every(validatePlayer)) return false;
+      || !team.players.every(validatePlayer)
+      || !isText(team.uniformColor || "#1d4ed8", 20)
+      || !isPlainObject(team.staff)) return false;
     if (teamIds.has(team.id)) return false;
     teamIds.add(team.id);
     const numbers = team.players.map((player) => player.number).filter(Boolean);
@@ -211,6 +218,16 @@ function upgradeMatch(match) {
     }];
   }));
   const teamIds = teams?.map((team) => team.id) || [];
+  const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team) => ({
+    ...team,
+    uniformColor: isText(team?.uniformColor, 20) ? team.uniformColor : "#1d4ed8",
+    staff: isPlainObject(team?.staff) ? team.staff : {},
+    players: Array.isArray(team?.players) ? team.players.map((player) => ({
+      ...player,
+      isCaptain: Boolean(player?.isCaptain),
+      isLibero: Boolean(player?.isLibero),
+    })) : [],
+  }));
   const sets = Array.isArray(match.sets) ? match.sets.map((set, index) => ({
     ...set,
     initialServiceTeamId: teamIds.includes(set.initialServiceTeamId) ? set.initialServiceTeamId : teamIds[0],
@@ -247,7 +264,7 @@ function upgradeMatch(match) {
       warmupMinutes: Number.isInteger(rules.warmupMinutes) ? rules.warmupMinutes : 10,
       note: typeof rules.note === "string" ? rules.note.slice(0, 240) : "",
     },
-    teams,
+    teams: normalizedTeams,
     sets,
   };
 }
@@ -313,6 +330,20 @@ export function createEmptyMatch() {
   const id = createId();
   const teamA = createId();
   const teamB = createId();
+  const teamStaffDefaults = () => ({
+    gm: "",
+    headCoach: "",
+    coach1: "",
+    coach2: "",
+    swingCoach: "",
+    performanceAnalyst: "",
+    trainer1: "",
+    trainer2: "",
+    manager1: "",
+    manager2: "",
+    doctor1: "",
+    doctor2: "",
+  });
   return {
     schemaVersion: 1,
     id,
@@ -340,8 +371,8 @@ export function createEmptyMatch() {
       warmupMinutes: 10, note: "",
     },
     teams: [
-      { id: teamA, name: "チーム A", players: [], rotationLineup: [] },
-      { id: teamB, name: "チーム B", players: [], rotationLineup: [] },
+      { id: teamA, name: "チーム A", uniformColor: "#1d4ed8", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
+      { id: teamB, name: "チーム B", uniformColor: "#f97316", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
     ],
     sets: [{ number: 1, initialServiceTeamId: teamA, startingLineups: { [teamA]: [], [teamB]: [] }, events: [] }],
   };

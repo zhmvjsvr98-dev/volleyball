@@ -102,6 +102,19 @@ function getTeam(teamId) {
   return currentMatch.teams.find((team) => team.id === teamId);
 }
 
+function getTeamDisplayColor(team) {
+  return team?.uniformColor || "#1d4ed8";
+}
+
+function getCourtPlayers(teamId) {
+  const team = getTeam(teamId);
+  if (!team) return [];
+  const set = currentSet();
+  const lineup = getCurrentLineup(currentMatch, set, teamId);
+  const activeIds = lineup.filter(Boolean);
+  return team.players.filter((player) => activeIds.includes(player.id));
+}
+
 function persistNow() {
   clearTimeout(saveTimer);
   if (!currentMatch) return;
@@ -233,8 +246,9 @@ function renderTeamProfiles() {
     if (store.teamProfiles.some((profile) => profile.id === previous)) select.value = previous;
     select.disabled = matchHasStarted() || store.teamProfiles.length === 0;
   }
-  for (const id of ["save-team-history-a", "save-team-history-b", "load-team-history-a", "load-team-history-b"]) {
-    byId(id).disabled = matchHasStarted() || (id.startsWith("load") && store.teamProfiles.length === 0);
+  for (const id of ["save-team-history-a", "save-team-history-b", "load-team-history-a", "load-team-history-b", "delete-team-history-a", "delete-team-history-b"]) {
+    const disabled = matchHasStarted() || (id.startsWith("load") && store.teamProfiles.length === 0) || (id.startsWith("delete") && store.teamProfiles.length === 0);
+    byId(id).disabled = disabled;
   }
 }
 
@@ -251,7 +265,20 @@ function saveTeamProfile(teamIndex) {
     savedAt: new Date().toISOString(),
     players: structuredClone(team.players),
     rotationLineup: [...team.rotationLineup],
+    uniformColor: team.uniformColor || "#1d4ed8",
+    staff: { ...team.staff },
   });
+  store = buildStore(store.matches, store.teamProfiles);
+  scheduleSave(true);
+  renderTeamProfiles();
+  clearError();
+}
+
+function deleteTeamProfile(teamIndex) {
+  const selectId = teamIndex === 0 ? "team-history-a" : "team-history-b";
+  const profileId = byId(selectId).value;
+  if (!profileId) return;
+  store.teamProfiles = store.teamProfiles.filter((profile) => profile.id !== profileId);
   store = buildStore(store.matches, store.teamProfiles);
   scheduleSave(true);
   renderTeamProfiles();
@@ -268,9 +295,11 @@ function loadTeamProfile(teamIndex) {
   team.players = profile.players.map((player) => {
     const id = createId();
     ids.set(player.id, id);
-    return { ...player, id };
+    return { ...player, id, isLibero: Boolean(player.isLibero) };
   });
   team.name = profile.name;
+  team.uniformColor = profile.uniformColor || "#1d4ed8";
+  team.staff = { ...(profile.staff || {}) };
   team.rotationLineup = profile.rotationLineup.map((id) => ids.get(id) || "");
   currentMatch.sets.forEach((set) => { set.startingLineups[team.id] = [...team.rotationLineup]; });
   byId(teamIndex === 0 ? "team-name-setup-a" : "team-name-setup-b").value = team.name;
@@ -609,13 +638,74 @@ function renderRallyEntryForm() {
   const selectedTeamId = currentMatch.teams.some((team) => team.id === teamSelect.value)
     ? teamSelect.value : currentMatch.teams[0].id;
   teamSelect.value = selectedTeamId;
+
   const team = getTeam(selectedTeamId);
+  const activePlayers = getCourtPlayers(selectedTeamId);
+  const playerGroup = byId("rally-player-group");
+  if (playerGroup) {
+    playerGroup.replaceChildren();
+    if (activePlayers.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "empty-message";
+      empty.textContent = "コートに入る選手をローテーションまたはサーブ順で設定してください。";
+      playerGroup.append(empty);
+    } else {
+      activePlayers.forEach((player) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "mini-select-button";
+        button.textContent = `#${player.number} ${player.name}`;
+        button.dataset.playerId = player.id;
+        button.dataset.teamId = team.id;
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".mini-select-button[data-team-id='" + team.id + "']").forEach((node) => node.classList.toggle("selected", node === button));
+          const playerSelect = byId("rally-player");
+          if (playerSelect) playerSelect.value = player.id;
+        });
+        playerGroup.append(button);
+      });
+    }
+  }
   const playerSelect = byId("rally-player");
-  const selectedPlayerId = team.players.some((player) => player.id === playerSelect.value)
-    ? playerSelect.value : "";
-  fillPlayerSelect(playerSelect, team.players, selectedPlayerId);
-  playerSelect.required = true;
-  byId("record-rally-play").disabled = !matchHasStarted() || !canScore(currentMatch);
+  if (playerSelect) {
+    playerSelect.replaceChildren();
+    activePlayers.forEach((player) => {
+      const option = document.createElement("option");
+      option.value = player.id;
+      option.textContent = `#${player.number} ${player.name}`;
+      playerSelect.append(option);
+    });
+    playerSelect.value = activePlayers[0]?.id || "";
+  }
+
+  const kindSelect = byId("rally-kind");
+  const kindGroup = byId("rally-kind-group");
+  kindGroup?.querySelectorAll("button").forEach((button) => {
+    const selected = (kindSelect ? kindSelect.value : button.dataset.value) === button.dataset.value;
+    button.classList.toggle("selected", selected);
+    button.addEventListener("click", () => {
+      if (kindSelect) kindSelect.value = button.dataset.value;
+      kindGroup.querySelectorAll("button").forEach((node) => {
+        node.classList.toggle("selected", node === button);
+      });
+    });
+  });
+
+  const outcomeSelect = byId("rally-outcome");
+  const outcomeGroup = byId("rally-outcome-group");
+  outcomeGroup?.querySelectorAll("button").forEach((button) => {
+    const selected = (outcomeSelect ? outcomeSelect.value : button.dataset.value) === button.dataset.value;
+    button.classList.toggle("selected", selected);
+    button.addEventListener("click", () => {
+      if (outcomeSelect) outcomeSelect.value = button.dataset.value;
+      outcomeGroup.querySelectorAll("button").forEach((node) => {
+        node.classList.toggle("selected", node === button);
+      });
+    });
+  });
+
+  const recordButton = byId("record-rally-play");
+  if (recordButton) recordButton.disabled = !matchHasStarted() || !canScore(currentMatch) || activePlayers.length === 0;
 }
 
 function showScoreDialog(teamId) {
@@ -673,10 +763,12 @@ function addDetailedScore() {
 
 function recordRallyPlay() {
   if (!matchHasStarted() || !canScore(currentMatch)) return;
+  const practicalKind = byId("rally-kind")?.value || byId("rally-kind-group")?.querySelector(".mini-select-button.selected")?.dataset.value || "serve";
+  const practicalOutcome = byId("rally-outcome")?.value || byId("rally-outcome-group")?.querySelector(".mini-select-button.selected")?.dataset.value || "success";
   const team = getTeam(byId("rally-team").value);
   const playerId = byId("rally-player").value || null;
-  const playKind = byId("rally-kind").value;
-  const outcome = byId("rally-outcome").value;
+  const playKind = practicalKind;
+  const outcome = practicalOutcome;
   if (!team || (playerId && !team.players.some((player) => player.id === playerId))) {
     showError("プレーをした選手を選択してください。");
     return;
@@ -1116,6 +1208,72 @@ function renderConfirmationRotation() {
   summary.append(detail);
 }
 
+function getRequiredStartChecks() {
+  const [teamA, teamB] = currentMatch.teams;
+  const info = currentMatch.matchInfo;
+  const requiredSlots = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
+  const startChecks = [
+    ["大会名", Boolean(info.tournamentName.trim())],
+    ["試合日", Boolean(info.matchDate)],
+    ["会場", Boolean(info.venue.trim())],
+    ["コート", Boolean(info.court.trim())],
+    ["試合番号", Boolean(info.matchNumber.trim())],
+    ["ラウンド", Boolean(info.round.trim())],
+    ["試合形式", currentMatch.rules.matchProfile === "beach" || currentMatch.rules.matchProfile === "soft" || Boolean(currentMatch.rules.matchProfile)],
+    ["カテゴリー・種別", Boolean(currentMatch.rules.category) && Boolean(currentMatch.rules.division)],
+    ["チームA名", Boolean(teamA.name.trim())],
+    ["チームB名", Boolean(teamB.name.trim())],
+    [`${teamA.name}の選手登録`, teamA.players.length >= requiredSlots],
+    [`${teamB.name}の選手登録`, teamB.players.length >= requiredSlots],
+    [`${teamA.name}のローテーション・サーブ順`, teamA.rotationLineup.slice(0, requiredSlots).every(Boolean)],
+    [`${teamB.name}のローテーション・サーブ順`, teamB.rotationLineup.slice(0, requiredSlots).every(Boolean)],
+    ["ファーストレフェリー", Boolean(info.officials.firstReferee.name.trim())],
+    ["セカンドレフェリー", Boolean(info.officials.secondReferee.name.trim())],
+    ["スコアラー", Boolean(info.officials.scorer.name.trim())],
+    ["ラインジャッジ1", Boolean(info.officials.lineJudge1.name.trim())],
+    ["ラインジャッジ2", Boolean(info.officials.lineJudge2.name.trim())],
+    ["ラインジャッジ3", Boolean(info.officials.lineJudge3.name.trim())],
+    ["ラインジャッジ4", Boolean(info.officials.lineJudge4.name.trim())],
+    ["第1セットのコート配置・サーブ順", (() => {
+      const set = currentMatch.sets[0];
+      if (!set) return false;
+      return currentMatch.teams.every((team) => team.rotationLineup.slice(0, requiredSlots).every(Boolean));
+    })()],
+  ];
+  return startChecks;
+}
+
+function getMissingStartRequirements() {
+  return getRequiredStartChecks().filter(([, complete]) => !complete).map(([label]) => label);
+}
+
+function getRequiredScoreSheetChecks() {
+  const [teamA, teamB] = currentMatch.teams;
+  const info = currentMatch.matchInfo;
+  const winningSet = currentMatch.sets.some((set) => getSetResult(currentMatch, set));
+  return [
+    ["大会名", Boolean(info.tournamentName.trim())],
+    ["試合日", Boolean(info.matchDate)],
+    ["会場", Boolean(info.venue.trim())],
+    [`${teamA.name}の名前`, Boolean(teamA.name.trim())],
+    [`${teamB.name}の名前`, Boolean(teamB.name.trim())],
+    [`${teamA.name}の登録選手とキャプテン`, teamA.players.length > 0 && teamA.players.some((player) => player.isCaptain)],
+    [`${teamB.name}の登録選手とキャプテン`, teamB.players.length > 0 && teamB.players.some((player) => player.isCaptain)],
+    ["ファーストレフェリー", Boolean(info.officials.firstReferee.name.trim())],
+    ["セカンドレフェリー", Boolean(info.officials.secondReferee.name.trim())],
+    ["スコアラー", Boolean(info.officials.scorer.name.trim())],
+    ["ラインジャッジ1", Boolean(info.officials.lineJudge1.name.trim())],
+    ["ラインジャッジ2", Boolean(info.officials.lineJudge2.name.trim())],
+    ["ラインジャッジ3", Boolean(info.officials.lineJudge3.name.trim())],
+    ["ラインジャッジ4", Boolean(info.officials.lineJudge4.name.trim())],
+    ["試合終了状態", winningSet || Boolean(info.endedAt)],
+  ];
+}
+
+function getMissingScoreSheetRequirements() {
+  return getRequiredScoreSheetChecks().filter(([, complete]) => !complete).map(([label]) => label);
+}
+
 function renderPageSummaries() {
   const [teamA, teamB] = currentMatch.teams;
   const current = currentSet();
@@ -1187,14 +1345,7 @@ function renderPageSummaries() {
   sheet.append(eventTable);
   renderPrintableScoreSheet();
 
-  const checks = [
-    ["大会名", Boolean(info.tournamentName)],
-    ["会場", Boolean(info.venue)],
-    [`${teamA.name}の選手登録`, teamA.players.length > 0],
-    [`${teamB.name}の選手登録`, teamB.players.length > 0],
-    ["ファーストレフェリー", Boolean(info.officials.firstReferee.name)],
-    ["スコアラー", Boolean(info.officials.scorer.name)],
-  ];
+  const checks = getRequiredStartChecks();
   const checklist = byId("verification-list");
   checklist.replaceChildren();
   checks.forEach(([label, done]) => {
@@ -1213,7 +1364,8 @@ function addEvent(event) {
   // 得点・交代などを共通の時系列イベントとして保存するため、取り消しと監査が容易です。
   const now = new Date().toISOString();
   const set = currentSet();
-  const appendEvent = (item) => set.events.push({ id: createId(), time: now, ...item });
+  const snapshot = `${getScore(set, currentMatch.teams[0].id)}-${getScore(set, currentMatch.teams[1].id)}`;
+  const appendEvent = (item) => set.events.push({ id: createId(), time: now, currentScore: snapshot, ...item });
   appendEvent(event);
   if (event.type === "score") {
     set.startedAt ||= now;
@@ -1303,10 +1455,11 @@ function addPlayer(form) {
     return;
   }
   const team = getTeam(form.dataset.addPlayer);
-  const number = form.querySelector('input[type="number"]').value.trim();
-  const nameInput = form.querySelector('input[type="text"]');
-  const name = nameInput.value.trim();
-  const captain = form.querySelector('input[type="checkbox"]').checked;
+  const inputs = form.querySelectorAll('input');
+  const number = inputs[0]?.value.trim();
+  const name = inputs[1]?.value.trim();
+  const captain = inputs[2]?.checked || false;
+  const libero = inputs[3]?.checked || false;
   if (!name || !/^\d{1,3}$/.test(number)) {
     showError("選手の背番号（1〜3桁）と氏名を入力してください。");
     return;
@@ -1319,7 +1472,15 @@ function addPlayer(form) {
     showError(`1チームに登録できる選手数の上限（${currentMatch.rules.rosterLimit}名）に達しています。`);
     return;
   }
-  team.players.push({ id: createId(), number, name: name.slice(0, 60), isCaptain: captain });
+  if (team.players.some((player) => player.isLibero) && libero) {
+    showError("リベロは1人まで登録できます。既存のリベロを解除してから追加してください。");
+    return;
+  }
+  if (captain && libero) {
+    showError("キャプテンとリベロは同時に設定できません。");
+    return;
+  }
+  team.players.push({ id: createId(), number, name: name.slice(0, 60), isCaptain: captain, isLibero: libero });
   if (captain) team.players.filter((player) => player.id !== team.players.at(-1).id).forEach((player) => { player.isCaptain = false; });
   clearError();
   render();
@@ -1419,6 +1580,8 @@ function bindEvents() {
   byId("save-team-history-b").addEventListener("click", () => saveTeamProfile(1));
   byId("load-team-history-a").addEventListener("click", () => loadTeamProfile(0));
   byId("load-team-history-b").addEventListener("click", () => loadTeamProfile(1));
+  byId("delete-team-history-a").addEventListener("click", () => deleteTeamProfile(0));
+  byId("delete-team-history-b").addEventListener("click", () => deleteTeamProfile(1));
   byId("prestart-initial-server").addEventListener("change", () => {
     if (matchHasStarted()) return;
     currentMatch.sets[0].initialServiceTeamId = byId("prestart-initial-server").value;
@@ -1534,7 +1697,15 @@ function bindEvents() {
   });
   byId("next-set").addEventListener("click", startNextSet);
   byId("undo-event").addEventListener("click", undoLastEvent);
-  byId("print-match").addEventListener("click", () => navigateTo("output"));
+  byId("print-match").addEventListener("click", () => {
+    const missing = getMissingScoreSheetRequirements();
+    if (missing.length > 0) {
+      showError(`記録票PDFを表示するには以下の項目が必要です: ${missing.join("、")}`);
+      navigateTo("verify");
+      return;
+    }
+    navigateTo("output");
+  });
   byId("print-manual").addEventListener("click", () => {
     byId("print-document-type").value = "manual";
     renderPrintableScoreSheet();
@@ -1645,13 +1816,10 @@ function bindEvents() {
   });
   byId("start-match").addEventListener("click", () => {
     if (matchHasStarted()) return navigateTo("match");
-    const requiredSlots = currentMatch.rules.matchProfile === "nine" ? 9 : 6;
-    const incompleteTeam = currentMatch.teams.find((team) =>
-      team.players.length < requiredSlots
-      || team.rotationLineup.slice(0, requiredSlots).filter(Boolean).length !== requiredSlots);
-    if (incompleteTeam) {
-      showError(`${incompleteTeam.name}の選手と${requiredSlots}人分のローテーション/サーブ順を登録してください。`);
-      navigateTo("rotation");
+    const missing = getMissingStartRequirements();
+    if (missing.length > 0) {
+      showError(`試合開始には以下の項目が必要です: ${missing.join("、")}`);
+      navigateTo("confirm");
       return;
     }
     const startedAt = new Date().toISOString();
@@ -1659,6 +1827,7 @@ function bindEvents() {
       team.id, [...team.rotationLineup],
     ]));
     currentMatch.matchInfo.startedAt = startedAt;
+    currentMatch.matchInfo.endedAt = null;
     render();
     scheduleSave(true);
     navigateTo("match");
@@ -1743,6 +1912,19 @@ function navigateTo(page, updateAddress = true) {
   if (selected === "match" && !matchHasStarted()) {
     showError("試合画面へ進む前にローテーション設定と開始確認を完了し、「試合を開始する」を押してください。");
     selected = "confirm";
+  }
+  if (selected === "output") {
+    const missing = getMissingScoreSheetRequirements();
+    if (missing.length > 0) {
+      showError(`記録票PDFを表示するには以下の項目が必要です: ${missing.join("、")}`);
+      selected = "verify";
+    }
+  }
+  if (selected === "confirm") {
+    const missing = getMissingStartRequirements();
+    if (missing.length > 0) {
+      showError(`開始確認の未入力項目: ${missing.join("、")}`);
+    }
   }
   document.querySelectorAll("[data-page-panel]").forEach((panel) => {
     const active = panel.dataset.pagePanel === selected;
