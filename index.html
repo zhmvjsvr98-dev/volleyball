@@ -188,8 +188,8 @@
               <figcaption><b>画面イメージ 5</b> ラリーの入力とイベント時系列</figcaption>
             </figure>
             <ol class="manual-instructions">
-              <li>試合画面の「ラリー・イベントを記録」からイベント画面を開きます。</li>
-              <li>発生したプレーごとに、チーム、選手、動作、結果を選択し、「ラリーの動作を記録」を押します。サーブ→レシーブ→トス→アタックの順に、実際の順序で入力します。</li>
+              <li>試合画面の「ラリー・イベントを記録」から入力欄を開きます。</li>
+              <li>画面の番号順に、チーム、コート内の選手、プレー、結果をボタンで選び、「このプレーを記録」を押します。サーブ→レシーブ→トス→アタックの順に、実際の順序で入力します。</li>
               <li>結果には「成功・継続」「得点」「失点・ミス」「タッチ・継続」「効果あり」「レシーブ優/良」等があります。判断に迷う場合は、大会で決めた記録方法に従ってください。</li>
               <li>ラリーが終わったら試合画面に戻って得点を記録します。ラリー記録だけではスコアは増減しません。</li>
               <li>得点を「＋1」で入力したときに選んだ得点プレーは、同じ得点を別イベントとして重複記録しないでください。</li>
@@ -412,18 +412,18 @@
             <section class="event-tool play-entry-tool"><h3>ラリー中のプレーを記録</h3>
               <p class="event-help">サーブ、レシーブ、トス、アタック、ブロック、ミスなどを発生順に記録します。選手と結果を選び、メモで状況を補足できます。</p>
               <div class="event-form play-entry-form">
-                <div class="field">
-                  <span>チーム</span>
+                <div class="field play-entry-team">
+                  <span class="rally-step-label"><b>1</b> チーム</span>
                   <div id="rally-team-group" class="button-grid compact-button-grid"></div>
                   <select id="rally-team" hidden></select>
                 </div>
-                <div class="field">
-                  <span>選手</span>
+                <div class="field play-entry-player">
+                  <span class="rally-step-label"><b>2</b> コート内の選手</span>
                   <div id="rally-player-group" class="button-grid compact-button-grid"></div>
                   <select id="rally-player" hidden></select>
                 </div>
-                <div class="field">
-                  <span>動作</span>
+                <div class="field play-entry-kind">
+                  <span class="rally-step-label"><b>3</b> プレー</span>
                   <div id="rally-kind-group" class="button-grid compact-button-grid">
                     <button type="button" class="mini-select-button selected" data-value="serve">サーブ</button>
                     <button type="button" class="mini-select-button" data-value="reception">レシーブ</button>
@@ -445,8 +445,8 @@
                     <option value="other">その他</option>
                   </select>
                 </div>
-                <div class="field">
-                  <span>結果</span>
+                <div class="field play-entry-outcome">
+                  <span class="rally-step-label"><b>4</b> 結果</span>
                   <div id="rally-outcome-group" class="button-grid compact-button-grid">
                     <button type="button" class="mini-select-button selected" data-value="success">成功</button>
                     <button type="button" class="mini-select-button" data-value="point">得点</button>
@@ -468,8 +468,8 @@
                     <option value="other">その他</option>
                   </select>
                 </div>
-                <label class="field play-note-field">内容・備考（任意）<input id="rally-note" maxlength="120" placeholder="例: ネットにかけた、二段トス"></label>
-                <button id="record-rally-play" class="button button-primary" type="button">ラリーの動作を記録</button>
+                <label class="field play-note-field"><span class="rally-step-label"><b>5</b> 内容・備考（任意）</span><input id="rally-note" maxlength="120" placeholder="例: ネットにかけた、二段トス"></label>
+                <button id="record-rally-play" class="button button-primary" type="button">このプレーを記録</button>
               </div>
             </section>
             <section class="event-tool"><h3>タイムアウト</h3><div id="timeout-actions" class="action-pair"></div></section>

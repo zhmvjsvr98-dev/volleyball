@@ -2023,7 +2023,9 @@ function applyDevicePreset(preset, save = false) {
   const selected = allowed.includes(preset) ? preset : "auto";
   document.body.dataset.device = selected === "auto" ? "" : selected;
   document.body.classList.remove("sidebar-open");
-  byId("sidebar-toggle").setAttribute("aria-expanded", "false");
+  const compactLayout = selected === "phone" || (selected === "auto" && matchMedia("(max-width: 820px)").matches);
+  const expanded = !compactLayout && !document.body.classList.contains("sidebar-collapsed");
+  byId("sidebar-toggle").setAttribute("aria-expanded", String(expanded));
   if (save) {
     try { localStorage.setItem("jva-device-preset", selected); } catch { /* Optional layout preference. */ }
   }
