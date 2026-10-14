@@ -28,18 +28,26 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   nameInput.disabled = rosterLocked;
   nameLabel.append(nameInput);
 
-  const colorLabel = element("label", "field");
-  colorLabel.append(document.createTextNode("ユニフォーム色"));
-  const colorInput = element("input");
-  colorInput.type = "color";
-  colorInput.value = team.uniformColor || "#1d4ed8";
-  colorInput.dataset.teamColor = team.id;
-  colorInput.title = "チームのユニフォーム色";
-  colorInput.setAttribute("aria-label", `${team.name}のユニフォーム色`);
-  colorInput.disabled = rosterLocked;
-  colorLabel.append(colorInput);
+  const colorFields = element("div", "team-color-fields");
+  [
+    ["players", "選手ユニフォーム色", team.uniformColor || "#1d4ed8"],
+    ["libero", "リベロユニフォーム色", team.liberoUniformColor || "#facc15"],
+  ].forEach(([role, label, value]) => {
+    const colorLabel = element("label", "field");
+    colorLabel.append(document.createTextNode(label));
+    const colorInput = element("input");
+    colorInput.type = "color";
+    colorInput.value = value;
+    colorInput.dataset.teamColor = team.id;
+    colorInput.dataset.teamColorRole = role;
+    colorInput.title = label;
+    colorInput.setAttribute("aria-label", `${team.name}の${label}`);
+    colorInput.disabled = rosterLocked;
+    colorLabel.append(colorInput);
+    colorFields.append(colorLabel);
+  });
 
-  topFields.append(nameLabel, colorLabel);
+  topFields.append(nameLabel, colorFields);
   head.append(topFields);
   container.append(head);
 

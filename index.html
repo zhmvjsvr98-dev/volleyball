@@ -304,11 +304,17 @@
         <section class="teams-grid setup-teams">
           <div class="setup-team">
             <label class="field">チームA<input id="team-name-setup-a" maxlength="60" placeholder="チーム名を入力"></label>
-            <label class="field">ユニフォーム色<input id="team-color-setup-a" type="color" aria-label="チームAのユニフォーム色"></label>
+            <div class="setup-team-colors">
+              <label class="field">選手ユニフォーム色<input id="team-color-setup-a" type="color" aria-label="チームAの選手ユニフォーム色"></label>
+              <label class="field">リベロユニフォーム色<input id="team-libero-color-setup-a" type="color" aria-label="チームAのリベロユニフォーム色"></label>
+            </div>
           </div>
           <div class="setup-team">
             <label class="field">チームB<input id="team-name-setup-b" maxlength="60" placeholder="チーム名を入力"></label>
-            <label class="field">ユニフォーム色<input id="team-color-setup-b" type="color" aria-label="チームBのユニフォーム色"></label>
+            <div class="setup-team-colors">
+              <label class="field">選手ユニフォーム色<input id="team-color-setup-b" type="color" aria-label="チームBの選手ユニフォーム色"></label>
+              <label class="field">リベロユニフォーム色<input id="team-libero-color-setup-b" type="color" aria-label="チームBのリベロユニフォーム色"></label>
+            </div>
           </div>
         </section>
       </section>
@@ -426,7 +432,8 @@
                   <span class="rally-step-label"><b>3</b> プレー</span>
                   <div id="rally-kind-group" class="button-grid compact-button-grid">
                     <button type="button" class="mini-select-button selected" data-value="serve">サーブ</button>
-                    <button type="button" class="mini-select-button" data-value="reception">レシーブ</button>
+                    <button type="button" class="mini-select-button" data-value="serveReception">サーブレシーブ</button>
+                    <button type="button" class="mini-select-button" data-value="attackReception">アタックレシーブ</button>
                     <button type="button" class="mini-select-button" data-value="set">トス</button>
                     <button type="button" class="mini-select-button" data-value="attack">アタック</button>
                     <button type="button" class="mini-select-button" data-value="backAttack">バック</button>
@@ -436,7 +443,8 @@
                   </div>
                   <select id="rally-kind" hidden>
                     <option value="serve" selected>サーブ</option>
-                    <option value="reception">レシーブ</option>
+                    <option value="serveReception">サーブレシーブ</option>
+                    <option value="attackReception">アタックレシーブ</option>
                     <option value="set">トス</option>
                     <option value="attack">アタック</option>
                     <option value="backAttack">バック</option>

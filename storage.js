@@ -35,7 +35,8 @@ function validateTeamProfile(profile) {
     || !Array.isArray(profile.players) || profile.players.length > 42
     || !profile.players.every(validatePlayer)
     || !Array.isArray(profile.rotationLineup) || profile.rotationLineup.length > 9
-    || !isColor(profile.uniformColor || "#1d4ed8")) return false;
+    || !isColor(profile.uniformColor || "#1d4ed8")
+    || !isColor(profile.liberoUniformColor || "#facc15")) return false;
   const playerIds = profile.players.map((player) => player.id);
   const numbers = profile.players.map((player) => player.number);
   const lineup = profile.rotationLineup.filter(Boolean);
@@ -87,7 +88,7 @@ function validateEvent(event, validTeamIds) {
       && isText(event.note || "", 120);
   }
   if (event.type === "rally-play") {
-    return ["serve", "reception", "set", "attack", "backAttack", "block", "error", "other"].includes(event.playKind)
+    return ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "error", "other"].includes(event.playKind)
       && ["success", "point", "error", "touch", "effective", "excellent", "good", "other"].includes(event.outcome)
       && (event.playerId === null || isText(event.playerId, 80))
       && isText(event.note || "", 120);
@@ -144,6 +145,7 @@ export function validateMatch(match) {
       || !Array.isArray(team.players) || team.players.length > 42
       || !team.players.every(validatePlayer)
       || !isColor(team.uniformColor || "#1d4ed8")
+      || !isColor(team.liberoUniformColor || "#facc15")
       || !isPlainObject(team.staff)) return false;
     if (teamIds.has(team.id)) return false;
     teamIds.add(team.id);
@@ -225,6 +227,7 @@ function upgradeMatch(match) {
   const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team) => ({
     ...team,
     uniformColor: isText(team?.uniformColor, 20) ? team.uniformColor : "#1d4ed8",
+    liberoUniformColor: isText(team?.liberoUniformColor, 20) ? team.liberoUniformColor : "#facc15",
     staff: isPlainObject(team?.staff) ? team.staff : {},
     players: Array.isArray(team?.players) ? team.players.map((player) => ({
       ...player,
@@ -375,8 +378,8 @@ export function createEmptyMatch() {
       warmupMinutes: 10, note: "",
     },
     teams: [
-      { id: teamA, name: "チーム A", uniformColor: "#1d4ed8", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
-      { id: teamB, name: "チーム B", uniformColor: "#f97316", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
+      { id: teamA, name: "チーム A", uniformColor: "#1d4ed8", liberoUniformColor: "#facc15", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
+      { id: teamB, name: "チーム B", uniformColor: "#f97316", liberoUniformColor: "#22c55e", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
     ],
     sets: [{ number: 1, initialServiceTeamId: teamA, startingLineups: { [teamA]: [], [teamB]: [] }, events: [] }],
   };

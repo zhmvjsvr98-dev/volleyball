@@ -53,7 +53,7 @@ const officialRoles = [
   ["lineJudge3", "ラインジャッジ3"],
   ["lineJudge4", "ラインジャッジ4"],
 ];
-const rallyKinds = ["serve", "reception", "set", "attack", "backAttack", "block", "error", "other"];
+const rallyKinds = ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "error", "other"];
 const rallyOutcomes = ["success", "point", "error", "touch", "effective", "excellent", "good", "other"];
 let pendingScoreTeamId;
 
@@ -68,8 +68,11 @@ function showError(message) {
   elements.error.textContent = message;
   elements.error.hidden = false;
 }
-for (const [id, teamIndex] of [["team-color-setup-a", 0], ["team-color-setup-b", 1]]) {
-  byId(id).addEventListener("input", (event) => updateTeamColor(currentMatch.teams[teamIndex].id, event.target.value));
+for (const [id, teamIndex, role] of [
+  ["team-color-setup-a", 0, "players"], ["team-libero-color-setup-a", 0, "libero"],
+  ["team-color-setup-b", 1, "players"], ["team-libero-color-setup-b", 1, "libero"],
+]) {
+  byId(id).addEventListener("input", (event) => updateTeamColor(currentMatch.teams[teamIndex].id, event.target.value, role));
 }
 
 function clearError() {
@@ -109,29 +112,38 @@ function getTeamDisplayColor(team) {
   return team?.uniformColor || "#1d4ed8";
 }
 
+function getLiberoDisplayColor(team) {
+  return team?.liberoUniformColor || "#facc15";
+}
+
 function applyTeamColors() {
   currentMatch.teams.forEach((team, index) => {
-    const preferredColor = getTeamDisplayColor(team);
-    const color = /^#[\da-f]{6}$/i.test(preferredColor) ? preferredColor : (index === 0 ? "#1d4ed8" : "#f97316");
+    const regularColor = /^#[\da-f]{6}$/i.test(getTeamDisplayColor(team))
+      ? getTeamDisplayColor(team) : (index === 0 ? "#1d4ed8" : "#f97316");
+    const liberoColor = /^#[\da-f]{6}$/i.test(getLiberoDisplayColor(team))
+      ? getLiberoDisplayColor(team) : (index === 0 ? "#facc15" : "#22c55e");
     const className = index === 0 ? "team-a" : "team-b";
     document.querySelectorAll(`.${className}`).forEach((element) => {
-      element.style.setProperty("--team-accent", color);
+      element.style.setProperty("--team-accent", regularColor);
+      element.style.setProperty("--libero-accent", liberoColor);
     });
   });
 }
 
-function updateTeamColor(teamId, color) {
+function updateTeamColor(teamId, color, role = "players") {
   const team = getTeam(teamId);
-  if (!team || !/^#[\da-f]{6}$/i.test(color)) {
+  if (!team || !["players", "libero"].includes(role) || !/^#[\da-f]{6}$/i.test(color)) {
     showError("ユニフォーム色を正しく選択してください。");
     return;
   }
-  team.uniformColor = color;
+  if (role === "libero") team.liberoUniformColor = color;
+  else team.uniformColor = color;
   const teamIndex = currentMatch.teams.indexOf(team);
-  const setupColor = byId(teamIndex === 0 ? "team-color-setup-a" : "team-color-setup-b");
+  const suffix = teamIndex === 0 ? "a" : "b";
+  const setupColor = byId(`team-${role === "libero" ? "libero-" : ""}color-setup-${suffix}`);
   if (setupColor) setupColor.value = color;
   document.querySelectorAll("input[data-team-color]").forEach((input) => {
-    if (input.dataset.teamColor === teamId) input.value = color;
+    if (input.dataset.teamColor === teamId && input.dataset.teamColorRole === role) input.value = color;
   });
   renderPrintableScoreSheet();
   applyTeamColors();
@@ -241,11 +253,15 @@ function populateForm() {
   byId("team-name-setup-b").disabled = locked;
   byId("team-color-setup-a").disabled = locked;
   byId("team-color-setup-b").disabled = locked;
+  byId("team-libero-color-setup-a").disabled = locked;
+  byId("team-libero-color-setup-b").disabled = locked;
   byId("rotation-enabled").disabled = locked || currentMatch.rules.matchProfile === "nine" || currentMatch.rules.category === "小学生";
   byId("team-name-setup-a").value = currentMatch.teams[0].name;
   byId("team-name-setup-b").value = currentMatch.teams[1].name;
   byId("team-color-setup-a").value = currentMatch.teams[0].uniformColor || "#1d4ed8";
   byId("team-color-setup-b").value = currentMatch.teams[1].uniformColor || "#f97316";
+  byId("team-libero-color-setup-a").value = currentMatch.teams[0].liberoUniformColor || "#facc15";
+  byId("team-libero-color-setup-b").value = currentMatch.teams[1].liberoUniformColor || "#22c55e";
 }
 
 function renderHistory() {
@@ -304,6 +320,7 @@ function saveTeamProfile(teamIndex) {
     players: structuredClone(team.players),
     rotationLineup: [...team.rotationLineup],
     uniformColor: team.uniformColor || "#1d4ed8",
+    liberoUniformColor: team.liberoUniformColor || "#facc15",
     staff: { ...team.staff },
   });
   store = buildStore(store.matches, store.teamProfiles);
@@ -359,6 +376,7 @@ function loadTeamProfile(teamIndex) {
   });
   team.name = profile.name;
   team.uniformColor = profile.uniformColor || "#1d4ed8";
+  team.liberoUniformColor = profile.liberoUniformColor || "#facc15";
   team.staff = { ...(profile.staff || {}) };
   team.rotationLineup = profile.rotationLineup.map((id) => ids.get(id) || "");
   currentMatch.sets.forEach((set) => { set.startingLineups[team.id] = [...team.rotationLineup]; });
@@ -568,11 +586,12 @@ function renderRotationView(containerId, set, editable) {
     : ["1", "2", "3", "4", "5", "6"];
   const makeSlot = (team, playerId, positionIndex, isServer, side, serviceOrder = false) => {
     const slot = document.createElement(editable ? "label" : "div");
-    slot.className = `rotation-slot${isServer ? " server" : ""}${serviceOrder ? " service-order-slot" : ""}`;
+    const selected = team.players.find((player) => player.id === playerId);
+    slot.className = `rotation-slot${isServer ? " server" : ""}${serviceOrder ? " service-order-slot" : ""}${selected?.isLibero ? " libero-player" : ""}`;
+    slot.style.setProperty("--player-accent", selected?.isLibero ? getLiberoDisplayColor(team) : getTeamDisplayColor(team));
     slot.dataset.position = String(positionIndex);
     const position = document.createElement("strong");
     position.textContent = serviceOrder ? `サーブ順 ${positionLabels[positionIndex]}` : `位置 ${positionLabels[positionIndex]}`;
-    const selected = team.players.find((player) => player.id === playerId);
     const person = document.createElement("span");
     person.textContent = selected ? `#${selected.number} ${selected.name}` : "未設定";
     slot.append(position, person);
@@ -733,6 +752,8 @@ function renderRallyEntryForm() {
         button.textContent = `#${player.number} ${player.name}`;
         button.dataset.playerId = player.id;
         button.dataset.teamId = team.id;
+        button.dataset.playerRole = player.isLibero ? "libero" : "player";
+        button.style.setProperty("--player-accent", player.isLibero ? getLiberoDisplayColor(team) : getTeamDisplayColor(team));
         button.addEventListener("click", () => {
           playerGroup.querySelectorAll(".mini-select-button[data-team-id]").forEach((node) => node.classList.toggle("selected", node === button));
           const playerSelect = byId("rally-player");
@@ -1964,7 +1985,7 @@ function bindEvents() {
   document.addEventListener("input", (event) => {
     const colorInput = event.target;
     if (colorInput instanceof HTMLInputElement && colorInput.matches("[data-team-color]")) {
-      updateTeamColor(colorInput.dataset.teamColor, colorInput.value);
+      updateTeamColor(colorInput.dataset.teamColor, colorInput.value, colorInput.dataset.teamColorRole);
     }
   });
   byId("start-match").addEventListener("click", () => {
