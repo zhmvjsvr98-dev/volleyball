@@ -275,11 +275,8 @@ body { background: var(--page); }
   border: 1px solid #18375f; border-radius: 0 0 13px 13px; background: #0d2445; color: #d9e8ff;
 }
 .main-navigation { display: flex; flex-direction: column; gap: .0rem; padding: .05rem; }
-.nav-item {
-  display: flex; align-items: center; gap: .45rem; width: 100%; min-height: 26px; padding: .18rem .35rem;
-  border: 1px solid transparent; border-radius: 6px; background: transparent; color: #c9d9f1;
-  cursor: pointer; font-size: .62rem; font-weight: 700; text-align: left;
-}
+.main-navigation {justify-content: flex-start !important;align-items: stretch !important;}
+.nav-item {display: block;width: 100%;height: auto;min-height: 0;margin: 0;padding: .45rem .55rem;line-height: 1.2;border: 1px solid transparent;border-radius: 6px;background: transparent;color: #c9d9f1;text-align: left;white-space: normal;}
 .nav-item span { width: 17px; color: #a9c3e5; font-size: .98rem; text-align: center; }
 .nav-item:hover { background: #17365f; }
 .nav-item.active { border-color: #53a6ff; background: #1265ee; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%); color: white; }
