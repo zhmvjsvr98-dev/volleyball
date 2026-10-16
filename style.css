@@ -333,6 +333,29 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
 .rotation-slot.server { outline: 2px solid var(--team-accent); outline-offset: 1px; }
 .teams-grid { gap: .75rem; }
 .team-card { padding: .8rem; }
+.team-staff-details {
+  margin-top: .75rem;
+
+  padding-top: .5rem;
+
+  border-top: 1px solid var(--line);
+}
+
+.team-staff-details summary {
+  cursor: pointer;
+
+  color: var(--brand);
+
+  font-weight: 700;
+}
+
+.team-staff-details[open] summary {
+  margin-bottom: .75rem;
+}
+
+.team-staff-grid {
+  margin-top: .5rem;
+}
 .team-card-head { flex-wrap: wrap; }
 .team-card-head h2 { color: #eaf1ff; font-size: .88rem; }
 .team-card .field { color: #a9b8d1; }

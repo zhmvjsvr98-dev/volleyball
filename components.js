@@ -72,7 +72,6 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
     field.append(input);
     staffWrap.append(field);
   });
-  container.append(staffWrap);
 
   const tableWrap = element("div", "roster-table-wrap");
   const table = element("table", "roster-table");
@@ -125,8 +124,30 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   addButton.type = "submit";
   addButton.disabled = rosterLocked || team.players.length >= rosterLimit;
   form.querySelectorAll("input").forEach((input) => { input.disabled = rosterLocked; });
-  form.append(numberLabel, namePlayerLabel, captainLabel, liberoLabel, addButton);
-  container.append(form);
+  form.append(
+  numberLabel,
+  namePlayerLabel,
+  captainLabel,
+  liberoLabel,
+  addButton
+);
+
+container.append(form);
+
+const staffDetails = element(
+  "details",
+  "team-staff-details"
+);
+
+const staffSummary =
+  document.createElement("summary");
+
+staffSummary.textContent = "スタッフ情報";
+
+staffDetails.append(staffSummary);
+staffDetails.append(staffWrap);
+
+container.append(staffDetails);
 }
 
 function makeField(label, type, maxLength, placeholder) {
