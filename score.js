@@ -117,10 +117,39 @@ export function getEventDescription(match, event) {
     ].filter(Boolean).join(" / ");
     return `${teamName} +1 得点 (${detail})${scoreSuffix}`;
   }
-  if (event.type === "timeout") return `${teamName} タイムアウト${scoreSuffix}`;
-  if (event.type === "sto") return `${teamName} STO（セーフティタイムアウト・タイムアウト回数には含めない）${scoreSuffix}`;
+    if (event.type === "timeout") {
+    return `${teamName} タイムアウト${scoreSuffix}`;
+  }
+
+  if (event.type === "sto") {
+    return `${teamName} STO（セーフティタイムアウト・タイムアウト回数には含めない）${scoreSuffix}`;
+  }
+
+  if (event.type === "match-start") {
+    return `試合開始${scoreSuffix}`;
+  }
+
+  if (event.type === "set-start") {
+    return `第${event.setNumber}セット開始${scoreSuffix}`;
+  }
+
+  if (event.type === "set-end") {
+    const winner = match.teams.find(
+      (item) => item.id === event.winnerTeamId
+    );
+
+    return `第${event.setNumber}セット終了（${winner?.name || "チーム"} 勝利）${scoreSuffix}`;
+  }
+
+  if (event.type === "match-end") {
+    return `試合終了${scoreSuffix}`;
+  }
+
   if (event.type === "court-change") {
-    return `${event.reason === "set-end" ? `第${event.setNumber || ""}セット終了後のコートチェンジ` : `コートチェンジ（第${event.setNumber || ""}セット ${event.triggerScore || event.totalPoints}点）`}${scoreSuffix}`;
+    return `${event.reason === "set-end"
+      ? `第${event.setNumber || ""}セット終了後のコートチェンジ`
+      : `コートチェンジ（第${event.setNumber || ""}セット ${event.triggerScore || event.totalPoints}点）`
+      }${scoreSuffix}`;
   }
   if (event.type === "challenge") {
     const challenges = {

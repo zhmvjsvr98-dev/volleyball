@@ -30,21 +30,38 @@ function validatePlayer(player) {
 }
 
 function validateTeamProfile(profile) {
-  if (!isPlainObject(profile) || !isText(profile.id, 80) || !isText(profile.name, 60)
-    || !profile.name.trim() || !isText(profile.savedAt, 40)
-    || !Array.isArray(profile.players) || profile.players.length > 42
+  if (
+    !isPlainObject(profile)
+    || !isText(profile.id, 80)
+    || !isText(profile.name, 60)
+    || !profile.name.trim()
+    || !isText(profile.savedAt, 40)
+    || !Array.isArray(profile.players)
+    || profile.players.length > 42
     || !profile.players.every(validatePlayer)
-    || !Array.isArray(profile.rotationLineup) || profile.rotationLineup.length > 9
+    || !Array.isArray(profile.rotationLineup)
+    || profile.rotationLineup.length > 9
     || !isColor(profile.uniformColor || "#1d4ed8")
-    || !isColor(profile.liberoUniformColor || "#facc15")) return false;
+    || !isColor(profile.liberoUniformColor || "#facc15")
+  ) {
+    return false;
+  }
+
+  if (profile.staff !== undefined && !isPlainObject(profile.staff)) {
+    return false;
+  }
+
   const playerIds = profile.players.map((player) => player.id);
   const numbers = profile.players.map((player) => player.number);
   const lineup = profile.rotationLineup.filter(Boolean);
-  return new Set(playerIds).size === playerIds.length
+
+  return (
+    new Set(playerIds).size === playerIds.length
     && new Set(numbers).size === numbers.length
     && profile.players.filter((player) => player.isCaptain).length <= 1
     && new Set(lineup).size === lineup.length
-    && lineup.every((id) => playerIds.includes(id));
+    && lineup.every((id) => playerIds.includes(id))
+  );
 }
 
 function validateEvent(event, validTeamIds) {
@@ -141,12 +158,7 @@ export function validateMatch(match) {
   const teamIds = new Set();
   const playerIdsByTeam = new Map();
   for (const team of match.teams) {
-    if (!isPlainObject(team) || !isText(team.id, 80) || !isText(team.name, 60)
-      || !Array.isArray(team.players) || team.players.length > 42
-      || !team.players.every(validatePlayer)
-      || !isColor(team.uniformColor || "#1d4ed8")
-      || !isColor(team.liberoUniformColor || "#facc15")
-      || !isPlainObject(team.staff)) return false;
+    if (!validateTeamProfile(team)) return false;
     if (teamIds.has(team.id)) return false;
     teamIds.add(team.id);
     const numbers = team.players.map((player) => player.number).filter(Boolean);

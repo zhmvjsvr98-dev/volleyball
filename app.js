@@ -604,13 +604,28 @@ function renderRotationView(containerId, set, editable) {
       empty.value = "";
       empty.textContent = "選手を割当";
       select.append(empty);
-      team.players.forEach((player) => {
-        const option = document.createElement("option");
-        option.value = player.id;
-        option.textContent = `#${player.number} ${player.name}`;
-        select.append(option);
-      });
-      select.value = playerId;
+    const usedPlayers = lineup.filter(
+  (id) => id && id !== playerId
+);
+
+team.players
+  .filter(
+    (player) =>
+      player.id === playerId
+      || !usedPlayers.includes(player.id)
+  )
+  .forEach((player) => {
+    const option = document.createElement("option");
+
+    option.value = player.id;
+    option.textContent =
+      `#${player.number} ${player.name}`;
+
+    select.append(option);
+  });
+
+select.value = playerId;
+
       slot.append(select);
     }
     return slot;
@@ -1497,22 +1512,41 @@ function addEvent(event) {
         });
       }
     }
-    if (getSetResult(currentMatch, set)) {
-      set.endedAt = now;
-      if (set.number < currentMatch.rules.bestOf
-        && !set.events.some((item) => item.type === "court-change" && item.reason === "set-end")) {
-        appendEvent({
-          type: "court-change",
-          teamId: currentMatch.teams[0].id,
-          totalPoints: currentMatch.teams.reduce((sum, team) => sum + getScore(set, team.id), 0),
-          setNumber: set.number,
-          reason: "set-end",
-        });
-      }
-    }
+  if (getSetResult(currentMatch, set)) {
+
+  set.endedAt = now;
+
+  appendEvent({
+    type: "set-end",
+    setNumber: set.number,
+    winnerTeamId: getSetResult(currentMatch, set),
+  });
+
+  if (
+    set.number < currentMatch.rules.bestOf
+    && !set.events.some((item) =>
+      item.type === "court-change"
+      && item.reason === "set-end")
+  ) {
+
+    appendEvent({
+      type: "court-change",
+      teamId: currentMatch.teams[0].id,
+      totalPoints: currentMatch.teams.reduce(
+        (sum, team) => sum + getScore(set, team.id),
+        0
+      ),
+      setNumber: set.number,
+      reason: "set-end",
+    });
+
+  }
+}
     if (isMatchComplete(currentMatch)) {
-      currentMatch.matchInfo.endedAt = now;
-    }
+
+  currentMatch.matchInfo.endedAt = now;
+
+}
   }
   render();
   scheduleSave(true);
@@ -1540,7 +1574,23 @@ function startNextSet() {
   const previousServer = currentSet().initialServiceTeamId;
   const initialServiceTeamId = currentMatch.teams.find((team) => team.id !== previousServer)?.id || currentMatch.teams[0].id;
   const startingLineups = Object.fromEntries(currentMatch.teams.map((team) => [team.id, [...team.rotationLineup]]));
-  currentMatch.sets.push({ number: currentMatch.sets.length + 1, initialServiceTeamId, startingLineups, startedAt: "", endedAt: "", events: [] });
+const newSet = {
+  number: currentMatch.sets.length + 1,
+  initialServiceTeamId,
+  startingLineups,
+  startedAt: "",
+  endedAt: "",
+  events: [],
+};
+
+newSet.events.push({
+  id: createId(),
+  time: new Date().toISOString(),
+  type: "set-start",
+  setNumber: newSet.number,
+});
+
+currentMatch.sets.push(newSet);
   render();
   scheduleSave(true);
 }
@@ -1982,12 +2032,41 @@ function bindEvents() {
     renderPageSummaries();
     scheduleSave(true);
   });
-  document.addEventListener("input", (event) => {
-    const colorInput = event.target;
-    if (colorInput instanceof HTMLInputElement && colorInput.matches("[data-team-color]")) {
-      updateTeamColor(colorInput.dataset.teamColor, colorInput.value, colorInput.dataset.teamColorRole);
-    }
-  });
+ document.addEventListener("input", (event) => {
+  const target = event.target;
+
+  // ユニフォーム色
+  if (
+    target instanceof HTMLInputElement &&
+    target.matches("[data-team-color]")
+  ) {
+    updateTeamColor(
+      target.dataset.teamColor,
+      target.value,
+      target.dataset.teamColorRole
+    );
+    return;
+  }
+
+  // スタッフ情報
+  if (
+    target instanceof HTMLInputElement &&
+    target.matches("[data-team-staff-key]")
+  ) {
+    const team = getTeam(target.dataset.teamId);
+
+    if (!team) return;
+
+    team.staff ||= {};
+
+    team.staff[target.dataset.teamStaffKey] =
+      target.value.trim().slice(0, 40);
+
+    scheduleSave();
+
+    return;
+  }
+});
   byId("start-match").addEventListener("click", () => {
     if (matchHasStarted()) return navigateTo("match");
     const missing = getMissingStartRequirements();
@@ -2001,10 +2080,25 @@ function bindEvents() {
       team.id, [...team.rotationLineup],
     ]));
     currentMatch.matchInfo.startedAt = startedAt;
-    currentMatch.matchInfo.endedAt = "";
-    render();
-    scheduleSave(true);
-    navigateTo("match");
+
+currentMatch.matchInfo.endedAt = "";
+
+currentSet().events.push({
+  id: createId(),
+  time: startedAt,
+  type: "match-start",
+});
+
+currentSet().events.push({
+  id: createId(),
+  time: startedAt,
+  type: "set-start",
+  setNumber: 1,
+});
+
+render();
+scheduleSave(true);
+navigateTo("match");
   });
   byId("sidebar-toggle").addEventListener("click", toggleSidebar);
   byId("device-preset").addEventListener("change", () => applyDevicePreset(byId("device-preset").value, true));
