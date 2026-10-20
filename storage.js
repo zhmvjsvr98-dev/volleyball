@@ -117,10 +117,35 @@ function validateEvent(event, validTeamIds) {
     return (event.playerOut === null || isText(event.playerOut, 20)) && (event.playerIn === null || isText(event.playerIn, 20));
   }
   if (event.type === "sanction") {
-    return isText(event.player, 20)
-      && ["warning", "penalty", "expulsion", "disqualification"].includes(event.sanctionType);
-  }
-  return false;
+  return isText(event.player, 20)
+    && ["warning", "penalty", "expulsion", "disqualification"].includes(event.sanctionType);
+}
+
+if (event.type === "match-start") {
+  return true;
+}
+
+if (event.type === "set-start") {
+  return Number.isInteger(event.setNumber)
+    && event.setNumber >= 1
+    && event.setNumber <= 5;
+}
+
+if (event.type === "set-end") {
+  return Number.isInteger(event.setNumber)
+    && event.setNumber >= 1
+    && event.setNumber <= 5
+    && (
+      event.winnerTeamId === undefined
+      || validTeamIds.has(event.winnerTeamId)
+    );
+}
+
+if (event.type === "match-end") {
+  return true;
+}
+
+return false;
 }
 
 export function validateMatch(match) {
