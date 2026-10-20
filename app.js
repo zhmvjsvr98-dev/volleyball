@@ -865,29 +865,108 @@ function addDetailedScore() {
 
 function recordRallyPlay() {
   if (!matchHasStarted() || !canScore(currentMatch)) return;
-  const practicalKind = byId("rally-kind")?.value || byId("rally-kind-group")?.querySelector(".mini-select-button.selected")?.dataset.value || "serve";
-  const practicalOutcome = byId("rally-outcome")?.value || byId("rally-outcome-group")?.querySelector(".mini-select-button.selected")?.dataset.value || "success";
+
+  const practicalKind =
+    byId("rally-kind")?.value ||
+    byId("rally-kind-group")
+      ?.querySelector(".mini-select-button.selected")
+      ?.dataset.value ||
+    "serve";
+
+  const practicalOutcome =
+    byId("rally-outcome")?.value ||
+    byId("rally-outcome-group")
+      ?.querySelector(".mini-select-button.selected")
+      ?.dataset.value ||
+    "success";
+
   const team = getTeam(byId("rally-team").value);
-  const playerId = byId("rally-player").value || null;
+
+  const playerId =
+    byId("rally-player").value || null;
+
   const playKind = practicalKind;
   const outcome = practicalOutcome;
-  if (!team || (playerId && !getCourtPlayers(team.id).some((player) => player.id === playerId))) {
-    showError("プレーをしたコート内の選手を選択してください。");
+
+  if (
+    !team ||
+    (
+      playerId &&
+      !getCourtPlayers(team.id).some(
+        (player) => player.id === playerId
+      )
+    )
+  ) {
+    showError(
+      "プレーをしたコート内の選手を選択してください。"
+    );
     return;
   }
-  if (!rallyKinds.includes(playKind) || !rallyOutcomes.includes(outcome)) {
-    showError("ラリーの動作と結果を選択してください。");
+
+  if (
+    !rallyKinds.includes(playKind) ||
+    !rallyOutcomes.includes(outcome)
+  ) {
+    showError(
+      "ラリーの動作と結果を選択してください。"
+    );
     return;
   }
+
+  const note =
+    byId("rally-note").value
+      .trim()
+      .slice(0, 120);
+
   addEvent({
     type: "rally-play",
     teamId: team.id,
     playerId,
     playKind,
     outcome,
-    note: byId("rally-note").value.trim().slice(0, 120),
+    note,
   });
+
+  // 得点 → 自チームへ加点
+  if (outcome === "point") {
+
+    addEvent({
+      type: "score",
+      teamId: team.id,
+      delta: 1,
+      playType: "other",
+      playerId,
+      faultPlayerId: null,
+      note: `ラリー記録: ${playKind}`,
+    });
+
+  }
+
+  // 失点 → 相手チームへ加点
+  else if (outcome === "error") {
+
+    const opponent =
+      currentMatch.teams.find(
+        (item) => item.id !== team.id
+      );
+
+    if (opponent) {
+
+      addEvent({
+        type: "score",
+        teamId: opponent.id,
+        delta: 1,
+        playType: "other",
+        playerId: null,
+        faultPlayerId: playerId,
+        note: `相手得点（${team.name}の失点）`,
+      });
+
+    }
+  }
+
   byId("rally-note").value = "";
+
   clearError();
 }
 
@@ -1512,36 +1591,7 @@ function addEvent(event) {
         });
       }
     }
-  if (getSetResult(currentMatch, set)) {
-
-  set.endedAt = now;
-
-  appendEvent({
-    type: "set-end",
-    setNumber: set.number,
-    winnerTeamId: getSetResult(currentMatch, set),
-  });
-
-  if (
-    set.number < currentMatch.rules.bestOf
-    && !set.events.some((item) =>
-      item.type === "court-change"
-      && item.reason === "set-end")
-  ) {
-
-    appendEvent({
-      type: "court-change",
-      teamId: currentMatch.teams[0].id,
-      totalPoints: currentMatch.teams.reduce(
-        (sum, team) => sum + getScore(set, team.id),
-        0
-      ),
-      setNumber: set.number,
-      reason: "set-end",
-    });
-
-  }
-}
+  
     if (isMatchComplete(currentMatch)) {
 
   currentMatch.matchInfo.endedAt = now;
