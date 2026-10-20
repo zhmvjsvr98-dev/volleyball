@@ -309,6 +309,10 @@ function renderTeamProfiles() {
 function saveTeamProfile(teamIndex) {
   if (matchHasStarted()) return showError("試合開始後はチーム履歴を変更できません。");
   const team = currentMatch.teams[teamIndex];
+  team.staff = Object.fromEntries(
+    [...elements.teamCards[teamIndex].querySelectorAll("[data-team-staff-key]")]
+      .map((input) => [input.dataset.teamStaffKey, input.value.trim().slice(0, 40)]),
+  );
   const name = team.name.trim();
   if (!name || !team.players.length) {
     return showError("チーム名と選手を登録してから履歴に保存してください。");
@@ -584,7 +588,7 @@ function renderRotationView(containerId, set, editable) {
   const positionLabels = currentMatch.rules.matchProfile === "nine"
     ? ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ"]
     : ["1", "2", "3", "4", "5", "6"];
-  const makeSlot = (team, playerId, positionIndex, isServer, side, serviceOrder = false) => {
+  const makeSlot = (team, lineup, playerId, positionIndex, isServer, side, serviceOrder = false) => {
     const slot = document.createElement(editable ? "label" : "div");
     const selected = team.players.find((player) => player.id === playerId);
     slot.className = `rotation-slot${isServer ? " server" : ""}${serviceOrder ? " service-order-slot" : ""}${selected?.isLibero ? " libero-player" : ""}`;
@@ -604,27 +608,16 @@ function renderRotationView(containerId, set, editable) {
       empty.value = "";
       empty.textContent = "選手を割当";
       select.append(empty);
-    const usedPlayers = lineup.filter(
-  (id) => id && id !== playerId
-);
-
-team.players
-  .filter(
-    (player) =>
-      player.id === playerId
-      || !usedPlayers.includes(player.id)
-  )
-  .forEach((player) => {
-    const option = document.createElement("option");
-
-    option.value = player.id;
-    option.textContent =
-      `#${player.number} ${player.name}`;
-
-    select.append(option);
-  });
-
-select.value = playerId;
+      const assignedPlayerIds = new Set(lineup.filter((id) => id && id !== playerId));
+      team.players
+        .filter((player) => !assignedPlayerIds.has(player.id))
+        .forEach((player) => {
+          const option = document.createElement("option");
+          option.value = player.id;
+          option.textContent = `#${player.number} ${player.name}`;
+          select.append(option);
+        });
+      select.value = playerId;
 
       slot.append(select);
     }
@@ -649,7 +642,7 @@ select.value = playerId;
         ? [4, 5, 0, 3, 2, 1]
         : [1, 2, 3, 0, 5, 4];
       order.forEach((positionIndex) => {
-        const cell = makeSlot(team, lineup[positionIndex] || "", positionIndex,
+        const cell = makeSlot(team, lineup, lineup[positionIndex] || "", positionIndex,
           servingState.server === team.id && positionIndex === 0, home ? "home" : "away");
         grid.append(cell);
       });
@@ -658,7 +651,7 @@ select.value = playerId;
       const order = document.createElement("ol");
       order.className = "service-order-list";
       lineup.forEach((playerId, positionIndex) => {
-        order.append(makeSlot(team, playerId, positionIndex,
+        order.append(makeSlot(team, lineup, playerId, positionIndex,
           servingState.server === team.id && positionIndex === serviceIndex(team), home ? "home" : "away", true));
       });
       section.append(order);
@@ -1577,10 +1570,7 @@ function addEvent(event) {
         && currentMatch.rules.bestOf === 3 && set.number === 3;
       if (isElementaryDecidingSet && reachedScore >= 11
         && !set.events.some((item) => item.type === "sto")) {
-   appendEvent({
-   type: "match-end",
-   teamId: currentMatch.teams[0].id,
-   });
+        appendEvent({ type: "sto", teamId: event.teamId });
       }
       if (decidingPoint > 0 && reachedScore >= decidingPoint
         && !set.events.some((item) => item.type === "court-change" && item.reason === "points")) {
@@ -1594,12 +1584,25 @@ function addEvent(event) {
         });
       }
     }
-  
-    if (isMatchComplete(currentMatch)) {
 
-  currentMatch.matchInfo.endedAt = now;
-
-}
+    const winnerTeamId = getSetResult(currentMatch, set);
+    if (winnerTeamId) {
+      set.endedAt ||= now;
+      if (!set.events.some((item) => item.type === "set-end")) {
+        appendEvent({
+          type: "set-end",
+          teamId: winnerTeamId,
+          setNumber: set.number,
+          winnerTeamId,
+        });
+      }
+      if (isMatchComplete(currentMatch)) {
+        currentMatch.matchInfo.endedAt ||= now;
+        if (!set.events.some((item) => item.type === "match-end")) {
+          appendEvent({ type: "match-end", teamId: winnerTeamId });
+        }
+      }
+    }
   }
   render();
   scheduleSave(true);
@@ -1627,25 +1630,23 @@ function startNextSet() {
   const previousServer = currentSet().initialServiceTeamId;
   const initialServiceTeamId = currentMatch.teams.find((team) => team.id !== previousServer)?.id || currentMatch.teams[0].id;
   const startingLineups = Object.fromEntries(currentMatch.teams.map((team) => [team.id, [...team.rotationLineup]]));
-const newSet = {
-  number: currentMatch.sets.length + 1,
-  initialServiceTeamId,
-  startingLineups,
-  startedAt: "",
-  endedAt: "",
-  events: [],
-};
+  const startedAt = new Date().toISOString();
+  const newSet = {
+    number: currentMatch.sets.length + 1,
+    initialServiceTeamId,
+    startingLineups,
+    startedAt,
+    endedAt: "",
+    events: [{
+      id: createId(),
+      time: startedAt,
+      teamId: currentMatch.teams[0].id,
+      type: "set-start",
+      setNumber: currentMatch.sets.length + 1,
+    }],
+  };
 
-newSet.events.push({
-  id: createId(),
-  time: new Date().toISOString(),
-  teamId: currentMatch.teams[0].id,
-  type: "set-start",
-  setNumber: newSet.number,
-});
-``
-
-currentMatch.sets.push(newSet);
+  currentMatch.sets.push(newSet);
   render();
   scheduleSave(true);
 }
@@ -1653,8 +1654,16 @@ currentMatch.sets.push(newSet);
 function undoLastEvent() {
   const set = currentSet();
   if (!set.events.length) return;
-  // 派生得点はイベント列から再計算するため、直前イベントを取り除くだけで状態も戻ります。
-  const removed = set.events.pop();
+  let removed = set.events.pop();
+  const scoreDerivedTypes = new Set(["sto", "court-change", "set-end", "match-end"]);
+  if (scoreDerivedTypes.has(removed.type)) {
+    while (scoreDerivedTypes.has(set.events.at(-1)?.type)) set.events.pop();
+    if (set.events.at(-1)?.type === "score") removed = set.events.pop();
+  }
+  if (removed.type === "score") {
+    const rally = set.events.at(-1);
+    if (rally?.type === "rally-play" && ["point", "error"].includes(rally.outcome)) set.events.pop();
+  }
   if (!getSetResult(currentMatch, set)) set.endedAt = "";
   if (!isMatchComplete(currentMatch)) currentMatch.matchInfo.endedAt = "";
   render();
@@ -2135,27 +2144,29 @@ function bindEvents() {
       team.id, [...team.rotationLineup],
     ]));
     currentMatch.matchInfo.startedAt = startedAt;
+    currentMatch.matchInfo.endedAt = "";
+    currentSet().startedAt = startedAt;
+    currentSet().events.push(
+      {
+        id: createId(),
+        time: startedAt,
+        currentScore: "0-0",
+        teamId: currentMatch.teams[0].id,
+        type: "match-start",
+      },
+      {
+        id: createId(),
+        time: startedAt,
+        currentScore: "0-0",
+        teamId: currentMatch.teams[0].id,
+        type: "set-start",
+        setNumber: 1,
+      },
+    );
 
-currentMatch.matchInfo.endedAt = "";
-
-currentSet().events.push({
-  id: createId(),
-  time: startedAt,
-  teamId: currentMatch.teams[0].id,
-  type: "match-start",
-});
-
-currentSet().events.push({
-  id: createId(),
-  time: startedAt,
-  teamId: currentMatch.teams[0].id,
-  type: "set-start",
-  setNumber: 1,
-});
-
-render();
-scheduleSave(true);
-navigateTo("match");
+    render();
+    scheduleSave(true);
+    navigateTo("match");
   });
   byId("sidebar-toggle").addEventListener("click", toggleSidebar);
   byId("device-preset").addEventListener("change", () => applyDevicePreset(byId("device-preset").value, true));

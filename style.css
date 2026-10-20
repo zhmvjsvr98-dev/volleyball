@@ -276,7 +276,7 @@ body { background: var(--page); }
 }
 .main-navigation { display: flex; flex-direction: column; gap: .0rem; padding: .05rem; }
 .main-navigation {justify-content: flex-start !important;align-items: stretch !important;}
-.nav-item {display: block;width: 100%;height: auto;min-height: 0;margin: 0;padding: .45rem .55rem;line-height: 1.2;border: 1px solid transparent;border-radius: 6px;background: transparent;color: #c9d9f1;text-align: left;white-space: normal;}
+.nav-item {display: block;width: 100%;height: auto;min-height: 0;flex: 0 0 auto;margin: 0;padding: .45rem .55rem;line-height: 1.2;border: 1px solid transparent;border-radius: 6px;background: transparent;color: #c9d9f1;text-align: left;white-space: normal;}
 .nav-item span { width: 17px; color: #a9c3e5; font-size: .98rem; text-align: center; }
 .nav-item:hover { background: #17365f; }
 .nav-item.active { border-color: #53a6ff; background: #1265ee; box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%); color: white; }
@@ -491,6 +491,9 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
 .mock-button-row { display: flex; flex-wrap: wrap; gap: .45rem; }
 .mock-button { display: inline-block; padding: .42rem .6rem; border: 1px solid #078fd2; border-radius: 5px; background: #078fd2; color: white; font-size: .62rem; font-weight: 800; }
 .mock-button.secondary { border-color: #52647e; background: #17243a; color: #eaf1ff; }
+.mock-confirm { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: .45rem; }
+.mock-confirm .mock-button { justify-self: start; }
+.mock-check { padding: .4rem .5rem; border: 1px solid #315944; border-radius: 5px; background: #11291f; color: #b9f5ce; font-size: .6rem; font-weight: 800; }
 .mock-fields, .mock-event-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; gap: .45rem; }
 .mock-field { display: grid; min-width: 0; gap: .15rem; color: #b7c9e8; font-size: .57rem; font-weight: 750; }
 .mock-field i { overflow: hidden; min-height: 24px; padding: .32rem .4rem; border: 1px solid #394d69; border-radius: 4px; background: #111e32; color: #eaf1ff; font-size: .61rem; font-style: normal; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
@@ -816,6 +819,7 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   .manual-instructions li, .manual-bullets li, .manual-checklist li, .manual-callout-row p { font-size: 8.5pt; line-height: 1.45; }
   .manual-cover-route span { font-size: 8pt; }
   .manual-cover h2 { font-size: 20pt; }
+  .mock-check { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .manual-tip, .manual-final-check .notice { font-size: 8pt; }
   .page-heading { display: flex !important; }
   .content-panel, .panel { break-inside: avoid; border: 1px solid #777; background: #fff; color: #111; }

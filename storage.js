@@ -29,13 +29,14 @@ function validatePlayer(player) {
     && typeof player.isLibero === "boolean";
 }
 
-function validateTeamProfile(profile) {
+function validateTeamProfile(profile, requireSavedAt = false) {
   if (
     !isPlainObject(profile)
     || !isText(profile.id, 80)
     || !isText(profile.name, 60)
     || !profile.name.trim()
-    || !isText(profile.savedAt, 40)
+    || (requireSavedAt && !isText(profile.savedAt, 40))
+    || (profile.savedAt !== undefined && !isText(profile.savedAt, 40))
     || !Array.isArray(profile.players)
     || profile.players.length > 42
     || !profile.players.every(validatePlayer)
@@ -318,7 +319,7 @@ function validateStore(value) {
     && Array.isArray(value.matches) && value.matches.length <= MAX_MATCHES
     && value.matches.every(validateMatch)
     && Array.isArray(value.teamProfiles) && value.teamProfiles.length <= MAX_TEAM_PROFILES
-    && value.teamProfiles.every(validateTeamProfile);
+    && value.teamProfiles.every((profile) => validateTeamProfile(profile, true));
 }
 
 export function readStore() {
