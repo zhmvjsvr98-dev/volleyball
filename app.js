@@ -1577,7 +1577,10 @@ function addEvent(event) {
         && currentMatch.rules.bestOf === 3 && set.number === 3;
       if (isElementaryDecidingSet && reachedScore >= 11
         && !set.events.some((item) => item.type === "sto")) {
-        appendEvent({ type: "sto", teamId: event.teamId });
+   appendEvent({
+   type: "match-end",
+   teamId: currentMatch.teams[0].id,
+   });
       }
       if (decidingPoint > 0 && reachedScore >= decidingPoint
         && !set.events.some((item) => item.type === "court-change" && item.reason === "points")) {
@@ -1636,9 +1639,11 @@ const newSet = {
 newSet.events.push({
   id: createId(),
   time: new Date().toISOString(),
+  teamId: currentMatch.teams[0].id,
   type: "set-start",
   setNumber: newSet.number,
 });
+``
 
 currentMatch.sets.push(newSet);
   render();
@@ -2136,12 +2141,14 @@ currentMatch.matchInfo.endedAt = "";
 currentSet().events.push({
   id: createId(),
   time: startedAt,
+  teamId: currentMatch.teams[0].id,
   type: "match-start",
 });
 
 currentSet().events.push({
   id: createId(),
   time: startedAt,
+  teamId: currentMatch.teams[0].id,
   type: "set-start",
   setNumber: 1,
 });
