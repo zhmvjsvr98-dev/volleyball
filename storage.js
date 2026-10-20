@@ -345,7 +345,14 @@ export function readStore() {
 }
 
 export function writeStore(store) {
-  if (!validateStore(store)) throw new Error("入力内容に不正な値があります。保存前の検証に失敗しました。");
+
+  const valid = validateStore(store);
+
+  if (!valid) {
+    console.log("STORE ERROR", structuredClone(store));
+    throw new Error("入力内容に不正な値があります。保存前の検証に失敗しました。");
+  }
+
   const serialized = JSON.stringify(store);
   if (serialized.length > MAX_STORAGE_BYTES) throw new Error("保存できるデータ量の上限を超えました。試合データを書き出してください。");
   // localStorageは容量不足やブラウザー設定で例外を投げることがあります。
