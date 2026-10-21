@@ -1,8 +1,8 @@
-const CACHE_NAME = "jva-score-static-v28";
+const CACHE_NAME = "jva-score-static-v53";
 const APP_FILES = [
   "./",
   "./index.html",
-  "./style.css?v=28",
+  "./style.css?v=42",
   "./app.js",
   "./score.js",
   "./storage.js",
@@ -24,16 +24,33 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+async function fetchWithCacheFallback(cache, key, request) {
+  let response;
+  try {
+    response = await fetch(request);
+  } catch (error) {
+    const cached = await cache.match(key);
+    if (cached) return cached;
+    throw error;
+  }
+  if (response.ok) {
+    try {
+      await cache.put(key, response.clone());
+    } catch (error) {
+      console.warn("Service Worker cache update failed:", error);
+    }
+  }
+  return response;
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET" || new URL(request.url).origin !== self.location.origin) return;
   if (request.mode === "navigate") {
-    event.respondWith(fetch(request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
-      return response;
-    }).catch(() => caches.match("./index.html")));
+    event.respondWith(caches.open(CACHE_NAME)
+      .then((cache) => fetchWithCacheFallback(cache, "./index.html", request)));
     return;
   }
-  event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
+  event.respondWith(caches.open(CACHE_NAME)
+    .then((cache) => fetchWithCacheFallback(cache, request)));
 });

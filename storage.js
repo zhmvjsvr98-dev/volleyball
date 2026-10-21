@@ -1,9 +1,112 @@
 const STORAGE_KEY = "jva-electronic-score-sheet";
-const MAX_MATCHES = 100;
+const DATABASE_NAME = "jva-volleyball-score";
+const DATABASE_VERSION = 2;
+const DATABASE_STORE = "records";
+const METADATA_KEY = "metadata";
+const MATCH_KEY_PREFIX = "match:";
+export const MAX_MATCHES = 1_000;
 const MAX_TEAM_PROFILES = 100;
-const MAX_STORAGE_BYTES = 2_000_000;
+const MAX_TOURNAMENTS = 100;
 const MAX_EVENTS_PER_SET = 2_000;
 const OFFICIAL_ROLES = ["firstReferee", "secondReferee", "scorer", "assistantScorer", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"];
+let databasePromise;
+let persistedMatches = new Map();
+
+function openDatabase() {
+  if (!("indexedDB" in globalThis)) {
+    return Promise.reject(new Error("このブラウザーはIndexedDBに対応していません。対応ブラウザーで開いてください。"));
+  }
+  if (!databasePromise) {
+    databasePromise = new Promise((resolve, reject) => {
+      let blocked = false;
+      const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(DATABASE_STORE)) {
+          request.result.createObjectStore(DATABASE_STORE, { keyPath: "key" });
+        }
+      };
+      request.onsuccess = () => {
+        if (blocked) {
+          request.result.close();
+          return;
+        }
+        request.result.onversionchange = () => {
+          request.result.close();
+          databasePromise = undefined;
+        };
+        resolve(request.result);
+      };
+      request.onerror = () => reject(request.error || new Error("保存領域を開けませんでした。"));
+      request.onblocked = () => {
+        blocked = true;
+        reject(new Error("別のタブが保存領域を更新中です。ほかのアプリタブを閉じて再読み込みしてください。"));
+      };
+    }).catch((error) => {
+      databasePromise = undefined;
+      throw error;
+    });
+  }
+  return databasePromise;
+}
+
+function emptyStore() {
+  return { version: 1, matches: [], teamProfiles: [], tournaments: [] };
+}
+
+function upgradeStore(value) {
+  if (!isPlainObject(value) || value.version !== 1 || !Array.isArray(value.matches)) {
+    throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
+  }
+  const upgraded = {
+    ...value,
+    matches: value.matches.map(upgradeMatch),
+    teamProfiles: Array.isArray(value.teamProfiles) ? value.teamProfiles : [],
+    tournaments: Array.isArray(value.tournaments) ? value.tournaments : [],
+  };
+  if (!validateStore(upgraded)) {
+    throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
+  }
+  return upgraded;
+}
+
+function rememberPersistedMatches(matches) {
+  persistedMatches = new Map(matches.map((match) => [match.id, JSON.stringify(match)]));
+}
+
+function storeFromRecords(records) {
+  const metadata = records.find((record) => record.key === METADATA_KEY)?.value;
+  if (!isPlainObject(metadata) || !Array.isArray(metadata.matchIds)) {
+    throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
+  }
+  const matchesById = new Map(records
+    .filter((record) => typeof record.key === "string" && record.key.startsWith(MATCH_KEY_PREFIX))
+    .map((record) => [record.key.slice(MATCH_KEY_PREFIX.length), record.value]));
+  const matches = metadata.matchIds.map((id) => matchesById.get(id));
+  if (matches.length !== matchesById.size || matches.some((match) => !match)) {
+    throw new Error("保存データの試合一覧が一致しません。データ書き出しファイルから復元してください。");
+  }
+  return upgradeStore({ version: metadata.version, matches, teamProfiles: metadata.teamProfiles, tournaments: metadata.tournaments });
+}
+
+function addStoreToTransaction(objectStore, store) {
+  objectStore.put({
+    key: METADATA_KEY,
+    value: {
+      version: store.version,
+      matchIds: store.matches.map((match) => match.id),
+      teamProfiles: store.teamProfiles,
+      tournaments: store.tournaments,
+    },
+  });
+  store.matches.forEach((match) => objectStore.put({ key: `${MATCH_KEY_PREFIX}${match.id}`, value: match }));
+}
+
+function storageError(error) {
+  if (error?.name === "QuotaExceededError" || error?.name === "NS_ERROR_DOM_QUOTA_REACHED") {
+    return new Error("ブラウザーの保存容量が不足しています。試合データを書き出してから不要な履歴を削除してください。");
+  }
+  return new Error(`保存領域へのアクセスに失敗しました: ${error?.message || "不明なエラー"}`);
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -37,6 +140,7 @@ function validateTeamProfile(profile, requireSavedAt = false) {
     || !profile.name.trim()
     || (requireSavedAt && !isText(profile.savedAt, 40))
     || (profile.savedAt !== undefined && !isText(profile.savedAt, 40))
+    || (profile.code !== undefined && profile.code !== "" && !/^[\w-]{1,30}$/.test(profile.code))
     || !Array.isArray(profile.players)
     || profile.players.length > 42
     || !profile.players.every(validatePlayer)
@@ -65,12 +169,75 @@ function validateTeamProfile(profile, requireSavedAt = false) {
   );
 }
 
+function validateTournament(tournament, matchIds) {
+  const baseIsValid = isPlainObject(tournament)
+    && isText(tournament.id, 80)
+    && isText(tournament.name, 80)
+    && tournament.name.trim().length > 0
+    && isText(tournament.createdAt, 40)
+    && Array.isArray(tournament.matchIds)
+    && tournament.matchIds.length <= MAX_MATCHES
+    && tournament.matchIds.every((id) => isText(id, 80) && matchIds.has(id))
+    && new Set(tournament.matchIds).size === tournament.matchIds.length;
+  if (!baseIsValid) return false;
+  if (tournament.format === undefined) return true;
+  if (!["round-robin", "single-elimination", "both"].includes(tournament.format)
+    || !Array.isArray(tournament.participants)
+    || tournament.participants.length < 2
+    || tournament.participants.length > 64
+    || !tournament.participants.every((participant) => isPlainObject(participant)
+      && isText(participant.code, 30) && /^[A-Z0-9_-]+$/.test(participant.code)
+      && isText(participant.name, 60) && participant.name.trim()
+      && isText(participant.profileId, 80))
+    || new Set(tournament.participants.map((participant) => participant.code)).size !== tournament.participants.length
+    || !Array.isArray(tournament.fixtures)
+    || tournament.fixtures.length > 4096) return false;
+  const fixtureIds = new Set(tournament.fixtures.map((fixture) => fixture?.id));
+  return tournament.fixtures.every((fixture) => isPlainObject(fixture)
+    && isText(fixture.id, 80)
+    && ["league", "bracket"].includes(fixture.phase)
+    && Number.isInteger(fixture.roundIndex) && fixture.roundIndex >= 0 && fixture.roundIndex <= 10
+    && isText(fixture.roundName, 40)
+    && Number.isInteger(fixture.matchIndex) && fixture.matchIndex >= 0 && fixture.matchIndex <= 4095
+    && ["teamACode", "teamBCode", "winnerCode"].every((key) => fixture[key] === undefined
+      || fixture[key] === "" || tournament.participants.some((participant) => participant.code === fixture[key]))
+    && ["teamAName", "teamBName"].every((key) => fixture[key] === undefined || isText(fixture[key], 60))
+    && ["sourceAId", "sourceBId"].every((key) => fixture[key] === undefined
+      || fixture[key] === "" || isText(fixture[key], 80) && fixtureIds.has(fixture[key]))
+    && (fixture.manualResult === undefined || !fixture.matchId
+      && validateManualTournamentResult(fixture.manualResult, fixture.teamACode, fixture.teamBCode, fixture.winnerCode))
+    && (fixture.matchId === undefined || fixture.matchId === "" || isText(fixture.matchId, 80) && matchIds.has(fixture.matchId)))
+    && new Set(tournament.fixtures.map((fixture) => fixture.id)).size === tournament.fixtures.length;
+}
+
+function validateManualTournamentResult(result, teamACode, teamBCode, winnerCode) {
+  if (!isPlainObject(result) || ![3, 5].includes(result.bestOf)
+    || !Array.isArray(result.sets) || result.sets.length < 1 || result.sets.length > result.bestOf
+    || !teamACode || !teamBCode || teamACode === teamBCode) return false;
+  const wins = { [teamACode]: 0, [teamBCode]: 0 };
+  const winsNeeded = Math.floor(result.bestOf / 2) + 1;
+  for (const [index, set] of result.sets.entries()) {
+    if (!isPlainObject(set) || !Number.isInteger(set.teamA) || set.teamA < 0 || set.teamA > 99
+      || !Number.isInteger(set.teamB) || set.teamB < 0 || set.teamB > 99 || set.teamA === set.teamB
+      || Object.values(wins).some((count) => count >= winsNeeded)) return false;
+    wins[set.teamA > set.teamB ? teamACode : teamBCode] += 1;
+    if (Object.values(wins).some((count) => count >= winsNeeded) && index !== result.sets.length - 1) return false;
+  }
+  const computedWinner = Object.entries(wins).find(([, count]) => count >= winsNeeded)?.[0] || "";
+  return computedWinner ? winnerCode === computedWinner : !winnerCode;
+}
+
 function validateEvent(event, validTeamIds) {
   if (!isPlainObject(event) || !isText(event.id, 80) || !isText(event.time, 40)
-    || !validTeamIds.has(event.teamId) || !isText(event.type, 20)) return false;
+    || !validTeamIds.has(event.teamId) || !isText(event.type, 40)) return false;
   if (event.type === "score") {
     if (event.delta !== 1 && event.delta !== -1) return false;
     if (event.correctionOf !== undefined && !isText(event.correctionOf, 80)) return false;
+    if (event.rallyEventId !== undefined && !isText(event.rallyEventId, 80)) return false;
+    if (event.correctionSource !== undefined && !["challenge", "scorer", "other"].includes(event.correctionSource)) return false;
+    if (event.correctionReason !== undefined && !isText(event.correctionReason, 120)) return false;
+    if (event.serverPlayerId !== undefined && !isText(event.serverPlayerId, 80)) return false;
+    if (event.expectedServerPlayerId !== undefined && !isText(event.expectedServerPlayerId, 80)) return false;
     if (event.rotationAdvanced !== undefined && typeof event.rotationAdvanced !== "boolean") return false;
     if (event.statPlayKind !== undefined && !["attack", "backAttack", "block", "serve"].includes(event.statPlayKind)) return false;
     if (event.delta < 0 || event.playType === undefined) return true;
@@ -94,6 +261,18 @@ function validateEvent(event, validTeamIds) {
   }
   if (event.type === "timeout") return true;
   if (event.type === "sto") return true;
+  if (event.type === "technical-timeout") {
+    return event.triggerPoint === undefined || Number.isInteger(event.triggerPoint) && event.triggerPoint >= 0 && event.triggerPoint <= 99;
+  }
+  if (event.type === "service-order-violation") {
+    return isText(event.actualServerPlayerId, 80)
+      && isText(event.expectedServerPlayerId, 80)
+      && isText(event.scoreEventId, 80);
+  }
+  if (event.type === "serve-fault") {
+    return Number.isInteger(event.attempt) && [1, 2].includes(event.attempt)
+      && (event.playerId === undefined || event.playerId === null || isText(event.playerId, 80));
+  }
   if (event.type === "court-change") {
     return Number.isInteger(event.totalPoints) && event.totalPoints >= 0 && event.totalPoints <= 198
       && (event.reason === undefined || ["points", "set-end"].includes(event.reason))
@@ -118,8 +297,9 @@ function validateEvent(event, validTeamIds) {
     return (event.playerOut === null || isText(event.playerOut, 20)) && (event.playerIn === null || isText(event.playerIn, 20));
   }
   if (event.type === "sanction") {
-  return isText(event.player, 20)
-    && ["warning", "penalty", "expulsion", "disqualification"].includes(event.sanctionType);
+    return isText(event.player, 40)
+      && ["warning", "penalty", "expulsion", "disqualification", "delay-warning", "delay-penalty"].includes(event.sanctionType)
+      && (event.subjectType === undefined || ["player", "bench", "staff", "team"].includes(event.subjectType));
 }
 
 if (event.type === "match-start") {
@@ -157,8 +337,9 @@ export function validateMatch(match) {
     || !Array.isArray(match.sets) || match.sets.length < 1 || match.sets.length > 5) return false;
 
   const info = match.matchInfo;
-  if (!["tournamentName", "matchDate", "venue", "court", "matchNumber", "round", "scheduledTime", "startedAt", "endedAt", "referee1", "referee2", "scorer"]
+  if (!["tournamentName", "matchDate", "venue", "venueAddress", "court", "matchNumber", "round", "scheduledTime", "startedAt", "endedAt", "referee1", "referee2", "scorer"]
     .every((key) => isText(info[key], ["tournamentName", "venue"].includes(key) ? 80
+      : key === "venueAddress" ? 120
       : ["referee1", "referee2", "scorer"].includes(key) ? 60
         : key === "matchDate" ? 10 : key === "round" ? 40 : key === "court" || key === "matchNumber" ? 20 : key === "scheduledTime" ? 5 : 40))) return false;
   if (info.matchDate && (!/^\d{4}-\d{2}-\d{2}$/.test(info.matchDate)
@@ -168,25 +349,33 @@ export function validateMatch(match) {
 
   const rules = match.rules;
   if (![3, 5].includes(rules.bestOf)
-    || !["six", "nine", "beach", "soft"].includes(rules.matchProfile)
+    || !["six", "six-elementary", "nine", "beach", "soft"].includes(rules.matchProfile)
     || !isText(rules.category, 30) || !isText(rules.division, 20) || !isText(rules.note, 240)
     || !Array.isArray(rules.setTargets) || rules.setTargets.length !== 5
     || !rules.setTargets.every((target) => Number.isInteger(target) && target >= 1 && target <= 99)
     || !Number.isInteger(rules.winBy) || rules.winBy < 1 || rules.winBy > 10
     || !Number.isInteger(rules.timeoutLimit) || rules.timeoutLimit < 0 || rules.timeoutLimit > 10
     || !Number.isInteger(rules.substitutionLimit) || rules.substitutionLimit < 0 || rules.substitutionLimit > 30
+    || !Array.isArray(rules.technicalTimeoutPoints) || rules.technicalTimeoutPoints.length !== 2
+    || !rules.technicalTimeoutPoints.every((point) => Number.isInteger(point) && point >= 0 && point <= 99)
     || !Number.isInteger(rules.rosterLimit) || rules.rosterLimit < 1 || rules.rosterLimit > 42
     || !Number.isInteger(rules.courtChangeInterval) || rules.courtChangeInterval < 0 || rules.courtChangeInterval > 99
+    || !Array.isArray(rules.courtChangeSets) || rules.courtChangeSets.length > 4
+    || rules.courtChangeSets.some((setNumber) => !Number.isInteger(setNumber) || setNumber < 1 || setNumber > 4)
+    || new Set(rules.courtChangeSets).size !== rules.courtChangeSets.length
     || !Number.isInteger(rules.warmupMinutes) || rules.warmupMinutes < 0 || rules.warmupMinutes > 60
     || typeof rules.rotationEnabled !== "boolean") return false;
 
   // Storageや読み込みファイルの内容は信頼せず、保存するたびに構造から検証します。
   const teamIds = new Set();
+  const teamCodes = new Set();
   const playerIdsByTeam = new Map();
   for (const team of match.teams) {
     if (!validateTeamProfile(team)) return false;
     if (teamIds.has(team.id)) return false;
+    if (team.code && teamCodes.has(team.code)) return false;
     teamIds.add(team.id);
+    if (team.code) teamCodes.add(team.code);
     const numbers = team.players.map((player) => player.number).filter(Boolean);
     const playerIds = team.players.map((player) => player.id);
     playerIdsByTeam.set(team.id, new Set(playerIds));
@@ -200,6 +389,7 @@ export function validateMatch(match) {
   }
 
   if (match.sets.length > rules.bestOf) return false;
+  const allPlayerIds = new Set(match.teams.flatMap((team) => team.players.map((player) => player.id)));
   return match.sets.every((set, index) => {
     if (!isPlainObject(set) || set.number !== index + 1 || !teamIds.has(set.initialServiceTeamId)
       || !isPlainObject(set.startingLineups) || !Array.isArray(set.startingLineups[match.teams[0].id])
@@ -212,6 +402,15 @@ export function validateMatch(match) {
       if (lineup.length > 9 || new Set(assigned).size !== assigned.length || assigned.some((id) => !playerIds.includes(id))) return false;
     }
     for (const event of set.events) {
+      if (event.type === "score"
+        && ((event.serverPlayerId !== undefined && !allPlayerIds.has(event.serverPlayerId))
+          || (event.expectedServerPlayerId !== undefined && !allPlayerIds.has(event.expectedServerPlayerId)))) return false;
+      if (event.type === "score" && event.rallyEventId !== undefined
+        && !set.events.slice(0, set.events.indexOf(event)).some((prior) =>
+          prior.id === event.rallyEventId && prior.type === "rally-play")) return false;
+      if (event.type === "service-order-violation"
+        && (!allPlayerIds.has(event.actualServerPlayerId) || !allPlayerIds.has(event.expectedServerPlayerId))) return false;
+      if (event.type === "serve-fault" && event.playerId && !allPlayerIds.has(event.playerId)) return false;
       if (["play", "rally-play"].includes(event.type) && event.playerId && !playerIdsByTeam.get(event.teamId).has(event.playerId)) return false;
       if (event.type !== "score" || event.delta < 0) continue;
       const scoringPlayers = playerIdsByTeam.get(event.teamId);
@@ -264,6 +463,7 @@ function upgradeMatch(match) {
   const teamIds = teams?.map((team) => team.id) || [];
   const normalizedTeams = (Array.isArray(teams) ? teams : []).map((team) => ({
     ...team,
+    code: typeof team?.code === "string" && /^[\w-]{1,30}$/.test(team.code) ? team.code : "",
     uniformColor: isText(team?.uniformColor, 20) ? team.uniformColor : "#1d4ed8",
     liberoUniformColor: isText(team?.liberoUniformColor, 20) ? team.liberoUniformColor : "#facc15",
     staff: isPlainObject(team?.staff) ? team.staff : {},
@@ -284,6 +484,7 @@ function upgradeMatch(match) {
     ...match,
     matchInfo: {
       ...oldInfo,
+      venueAddress: typeof oldInfo.venueAddress === "string" ? oldInfo.venueAddress.slice(0, 120) : "",
       court: typeof oldInfo.court === "string" ? oldInfo.court : "",
       matchNumber: typeof oldInfo.matchNumber === "string" ? oldInfo.matchNumber : "",
       round: typeof oldInfo.round === "string" ? oldInfo.round : "",
@@ -295,7 +496,7 @@ function upgradeMatch(match) {
     rules: {
       ...rules,
       bestOf,
-      matchProfile: ["six", "nine"].includes(rules.matchProfile) ? rules.matchProfile : "six",
+      matchProfile: ["six", "six-elementary", "nine", "beach", "soft"].includes(rules.matchProfile) ? rules.matchProfile : "six",
       category: typeof rules.category === "string" ? rules.category : "一般",
       division: typeof rules.division === "string" ? rules.division : "男子",
       setTargets: Array.isArray(rules.setTargets) && rules.setTargets.length === 5
@@ -305,6 +506,15 @@ function upgradeMatch(match) {
       substitutionLimit: Number.isInteger(rules.substitutionLimit) ? rules.substitutionLimit : 6,
       rosterLimit: Number.isInteger(rules.rosterLimit) ? rules.rosterLimit : 30,
       courtChangeInterval: Number.isInteger(rules.courtChangeInterval) ? rules.courtChangeInterval : 8,
+      courtChangeSets: Array.isArray(rules.courtChangeSets)
+        && rules.courtChangeSets.length <= 4
+        && rules.courtChangeSets.every((setNumber) => Number.isInteger(setNumber) && setNumber >= 1 && setNumber <= 4)
+        && new Set(rules.courtChangeSets).size === rules.courtChangeSets.length
+        ? rules.courtChangeSets : [1, 2, 3, 4],
+      technicalTimeoutPoints: Array.isArray(rules.technicalTimeoutPoints)
+        && rules.technicalTimeoutPoints.length === 2
+        && rules.technicalTimeoutPoints.every((point) => Number.isInteger(point) && point >= 0 && point <= 99)
+        ? rules.technicalTimeoutPoints : [0, 0],
       rotationEnabled: typeof rules.rotationEnabled === "boolean" ? rules.rotationEnabled : true,
       warmupMinutes: Number.isInteger(rules.warmupMinutes) ? rules.warmupMinutes : 10,
       note: typeof rules.note === "string" ? rules.note.slice(0, 240) : "",
@@ -315,56 +525,128 @@ function upgradeMatch(match) {
 }
 
 function validateStore(value) {
-  return isPlainObject(value) && value.version === 1
-    && Array.isArray(value.matches) && value.matches.length <= MAX_MATCHES
-    && value.matches.every(validateMatch)
-    && Array.isArray(value.teamProfiles) && value.teamProfiles.length <= MAX_TEAM_PROFILES
-    && value.teamProfiles.every((profile) => validateTeamProfile(profile, true));
+  if (!isPlainObject(value) || value.version !== 1
+    || !Array.isArray(value.matches) || value.matches.length > MAX_MATCHES
+    || !value.matches.every(validateMatch)
+    || !Array.isArray(value.teamProfiles) || value.teamProfiles.length > MAX_TEAM_PROFILES
+    || !value.teamProfiles.every((profile) => validateTeamProfile(profile, true))
+    || !Array.isArray(value.tournaments) || value.tournaments.length > MAX_TOURNAMENTS) return false;
+  const matchIds = new Set(value.matches.map((match) => match.id));
+  const tournamentMatchIds = value.tournaments.flatMap((tournament) => tournament.matchIds);
+  return value.tournaments.every((tournament) => validateTournament(tournament, matchIds))
+    && new Set(value.tournaments.map((tournament) => tournament.id)).size === value.tournaments.length
+    && new Set(tournamentMatchIds).size === tournamentMatchIds.length;
 }
 
-export function readStore() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { version: 1, matches: [], teamProfiles: [] };
-    const parsed = JSON.parse(raw);
-    if (!isPlainObject(parsed) || parsed.version !== 1 || !Array.isArray(parsed.matches)) {
-      throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
-    }
-    const upgraded = {
-      ...parsed,
-      matches: parsed.matches.map(upgradeMatch),
-      teamProfiles: Array.isArray(parsed.teamProfiles) ? parsed.teamProfiles : [],
+export async function readStore() {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(DATABASE_STORE, "readwrite");
+    const objectStore = transaction.objectStore(DATABASE_STORE);
+    let loadedStore;
+    let migrated = false;
+    let failure;
+    const request = objectStore.getAll();
+    request.onsuccess = () => {
+      try {
+        if (request.result.length) {
+          loadedStore = storeFromRecords(request.result);
+        } else {
+          let legacyData;
+          try {
+            legacyData = localStorage.getItem(STORAGE_KEY);
+          } catch (error) {
+            throw new Error(`旧形式の保存データにアクセスできません: ${error.message}`);
+          }
+          if (legacyData) {
+            let parsed;
+            try {
+              parsed = JSON.parse(legacyData);
+            } catch {
+              throw new Error("保存データを読み取れません。ブラウザーの保存領域が破損している可能性があります。");
+            }
+            loadedStore = upgradeStore(parsed);
+            addStoreToTransaction(objectStore, loadedStore);
+            migrated = true;
+          } else {
+            loadedStore = emptyStore();
+          }
+        }
+      } catch (error) {
+        failure = error;
+        transaction.abort();
+      }
     };
-    if (!validateStore(upgraded)) throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
-    return upgraded;
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      throw new Error("保存データを読み取れません。ブラウザーの保存領域が破損している可能性があります。");
-    }
-    throw error;
-  }
+    request.onerror = () => {
+      failure = request.error;
+      transaction.abort();
+    };
+    transaction.oncomplete = () => {
+      rememberPersistedMatches(loadedStore.matches);
+      if (migrated) {
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (error) {
+          console.warn("Legacy score data remains in LocalStorage after migration:", error);
+        }
+      }
+      resolve(loadedStore);
+    };
+    transaction.onabort = () => reject(failure || storageError(transaction.error));
+    transaction.onerror = () => { failure ||= transaction.error; };
+  });
 }
 
-export function writeStore(store) {
-
-  const valid = validateStore(store);
-
-  if (!valid) {
-    console.log("STORE ERROR", structuredClone(store));
+export async function writeStore(store) {
+  if (!validateStore(store)) {
     throw new Error("入力内容に不正な値があります。保存前の検証に失敗しました。");
   }
 
-  const serialized = JSON.stringify(store);
-  if (serialized.length > MAX_STORAGE_BYTES) throw new Error("保存できるデータ量の上限を超えました。試合データを書き出してください。");
-  // localStorageは容量不足やブラウザー設定で例外を投げることがあります。
-  try {
-    localStorage.setItem(STORAGE_KEY, serialized);
-  } catch (error) {
-    if (error instanceof DOMException && (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED")) {
-      throw new Error("ブラウザーの保存容量が不足しています。試合データを書き出してから不要な履歴を削除してください。");
-    }
-    throw new Error(`自動保存に失敗しました: ${error.message}`);
-  }
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(DATABASE_STORE, "readwrite");
+    const objectStore = transaction.objectStore(DATABASE_STORE);
+    const matchKeys = new Set(store.matches.map((match) => `${MATCH_KEY_PREFIX}${match.id}`));
+    let failure;
+    const keysRequest = objectStore.getAllKeys();
+    keysRequest.onsuccess = () => {
+      try {
+        keysRequest.result.forEach((key) => {
+          if (typeof key === "string" && key.startsWith(MATCH_KEY_PREFIX) && !matchKeys.has(key)) {
+            objectStore.delete(key);
+          }
+        });
+        objectStore.put({
+          key: METADATA_KEY,
+          value: {
+            version: store.version,
+            matchIds: store.matches.map((match) => match.id),
+            teamProfiles: store.teamProfiles,
+            tournaments: store.tournaments,
+          },
+        });
+        store.matches.forEach((match) => {
+          const serialized = JSON.stringify(match);
+          if (persistedMatches.get(match.id) !== serialized) {
+            objectStore.put({ key: `${MATCH_KEY_PREFIX}${match.id}`, value: match });
+          }
+        });
+      } catch (error) {
+        failure = error;
+        transaction.abort();
+      }
+    };
+    keysRequest.onerror = () => {
+      failure = keysRequest.error;
+      transaction.abort();
+    };
+    transaction.oncomplete = () => {
+      rememberPersistedMatches(store.matches);
+      resolve();
+    };
+    transaction.onabort = () => reject(storageError(failure || transaction.error));
+    transaction.onerror = () => { failure ||= transaction.error; };
+  });
 }
 
 export function validateImport(value) {
@@ -405,6 +687,7 @@ export function createEmptyMatch() {
       tournamentName: "",
       matchDate: new Date().toISOString().slice(0, 10),
       venue: "",
+      venueAddress: "",
       court: "",
       matchNumber: "",
       round: "",
@@ -419,7 +702,7 @@ export function createEmptyMatch() {
     rules: {
       bestOf: 5, regularTarget: 25, finalTarget: 15, setTargets: [25, 25, 25, 25, 15],
       matchProfile: "six", category: "一般", division: "男子", winBy: 2, timeoutLimit: 2,
-      substitutionLimit: 6, rosterLimit: 30, courtChangeInterval: 8, rotationEnabled: true,
+      substitutionLimit: 6, technicalTimeoutPoints: [0, 0], rosterLimit: 30, courtChangeInterval: 8, courtChangeSets: [1, 2, 3, 4], rotationEnabled: true,
       warmupMinutes: 10, note: "",
     },
     teams: [
@@ -430,12 +713,24 @@ export function createEmptyMatch() {
   };
 }
 
-export function buildStore(matches, teamProfiles = []) {
+export function buildStore(matches, teamProfiles = [], tournaments = []) {
   const unique = new Map();
   for (const match of matches) unique.set(match.id, match);
+  const savedMatches = [...unique.values()].slice(0, MAX_MATCHES);
+  const matchIds = new Set(savedMatches.map((match) => match.id));
   return {
     version: 1,
-    matches: [...unique.values()].slice(0, MAX_MATCHES),
+    matches: savedMatches,
     teamProfiles: teamProfiles.slice(0, MAX_TEAM_PROFILES),
+    tournaments: tournaments.slice(0, MAX_TOURNAMENTS).map((tournament) => ({
+      ...tournament,
+      matchIds: tournament.matchIds.filter((id) => matchIds.has(id)),
+      ...(Array.isArray(tournament.fixtures) ? {
+        fixtures: tournament.fixtures.map((fixture) => ({
+          ...fixture,
+          ...(fixture.matchId && !matchIds.has(fixture.matchId) ? { matchId: "" } : {}),
+        })),
+      } : {}),
+    })),
   };
 }
