@@ -73,6 +73,8 @@ let finishChecklistExpanded = false;
 let tournamentNotice = "";
 let editingTournamentResult = null;
 let editingTournamentFixture = null;
+let scoreTimelineInterval;
+let matchReplayInterval;
 
 function showError(message) {
   elements.error.textContent = message;
@@ -585,6 +587,149 @@ function getTournamentFixtureWinner(fixture, match) {
   return Object.entries(wins).find(([, count]) => count >= needed)?.[0] || "";
 }
 
+function getSavedMatchesForAnalysis() {
+  const matches = new Map(store.matches.map((match) => [match.id, match]));
+  matches.set(currentMatch.id, currentMatch);
+  return [...matches.values()].filter(isMatchComplete);
+}
+
+function isTournamentParticipantTeam(team, participant) {
+  if (participant.code && team.code) return team.code === participant.code;
+  return team.name.trim().toLocaleLowerCase("ja") === participant.name.trim().toLocaleLowerCase("ja");
+}
+
+function matchContainsTournamentTeam(match, participant) {
+  return match.teams.some((team) => isTournamentParticipantTeam(team, participant));
+}
+
+function fillAnalysisTeamSelect(select, tournament, placeholderText) {
+  const previous = select.value;
+  select.replaceChildren();
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = placeholderText;
+  select.append(placeholder);
+  tournament?.participants.forEach((participant) => {
+    const option = document.createElement("option");
+    option.value = participant.code;
+    option.textContent = `${participant.name} (${participant.code})`;
+    select.append(option);
+  });
+  if (tournament?.participants.some((participant) => participant.code === previous)) select.value = previous;
+  else if (tournament?.participants[0]) select.value = tournament.participants[0].code;
+}
+
+function renderOpponentScouting(tournament) {
+  const select = byId("opponent-scouting-team");
+  const container = byId("opponent-scouting-results");
+  fillAnalysisTeamSelect(select, tournament, "チームを選択");
+  container.replaceChildren();
+  const participant = tournament?.participants.find((item) => item.code === select.value);
+  if (!participant) {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "大会を選択すると、保存済み試合から相手チームの傾向を表示します。";
+    container.append(empty);
+    return;
+  }
+  const recent = getSavedMatchesForAnalysis().filter((match) => matchContainsTournamentTeam(match, participant))
+    .sort((a, b) => (b.matchInfo.matchDate || "").localeCompare(a.matchInfo.matchDate || "")
+      || (b.matchInfo.endedAt || "").localeCompare(a.matchInfo.endedAt || "")).slice(0, 10);
+  const heading = document.createElement("p");
+  heading.className = "stats-note";
+  heading.textContent = `${participant.name} — 最近${recent.length}試合（完了試合）`;
+  container.append(heading);
+  if (!recent.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "このチームの完了試合はまだありません。";
+    container.append(empty);
+    return;
+  }
+  let servePoints = 0;
+  let attackPoints = 0;
+  let attackAttempts = 0;
+  let receptionExcellent = 0;
+  let receptionGood = 0;
+  let receptionAttempts = 0;
+  let wins = 0;
+  const rows = recent.map((match) => {
+    const team = match.teams.find((item) => isTournamentParticipantTeam(item, participant));
+    const opponent = match.teams.find((item) => item.id !== team.id);
+    const stats = getPerformanceStats(team, match.sets).total;
+    servePoints += stats.serve.points;
+    attackPoints += stats.attack.points;
+    attackAttempts += stats.attack.attempts;
+    receptionExcellent += stats.reception.excellent;
+    receptionGood += stats.reception.good;
+    receptionAttempts += stats.reception.attempts;
+    const won = getSetWins(match).find((item) => item.teamId === team.id)?.wins
+      >= Math.floor(match.rules.bestOf / 2) + 1;
+    if (won) wins += 1;
+    const score = match.sets.filter((set) => getSetResult(match, set))
+      .map((set) => `${getScore(set, team.id)}-${getScore(set, opponent.id)}`).join(" / ");
+    return [match.matchInfo.matchDate || "日付不明", opponent.name, won ? "勝" : "敗", score || "—"];
+  });
+  container.append(makeTable(["日付", "対戦相手", "結果", "セット得点"], rows, "match-analysis-table"));
+  const aggregateRows = [[
+    "直近試合の勝敗", `${wins}勝${recent.length - wins}敗`,
+    "平均サーブ得点", (servePoints / recent.length).toFixed(1),
+    "アタック決定率", formatPercentage(attackPoints, attackAttempts),
+    "レセプション成功率", receptionAttempts
+      ? `${((receptionExcellent * 100 + receptionGood * 50) / receptionAttempts).toFixed(1)}%` : "—",
+  ]];
+  container.append(makeTable(["指標", "値", "指標", "値", "指標", "値", "指標", "値"], aggregateRows, "match-analysis-table"));
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "個人プレー記録がある保存済み完了試合のみ集計します。未記録の試合は傾向に反映されません。";
+  container.append(note);
+}
+
+function renderHeadToHead(tournament) {
+  const teamASelect = byId("head-to-head-team-a");
+  const teamBSelect = byId("head-to-head-team-b");
+  const container = byId("head-to-head-results");
+  fillAnalysisTeamSelect(teamASelect, tournament, "チームAを選択");
+  fillAnalysisTeamSelect(teamBSelect, tournament, "チームBを選択");
+  if (teamASelect.value === teamBSelect.value && tournament?.participants.length > 1) {
+    teamBSelect.value = tournament.participants.find((item) => item.code !== teamASelect.value)?.code || "";
+  }
+  container.replaceChildren();
+  const participantA = tournament?.participants.find((item) => item.code === teamASelect.value);
+  const participantB = tournament?.participants.find((item) => item.code === teamBSelect.value);
+  if (!participantA || !participantB || participantA.code === participantB.code) {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "過去対戦を表示するには、異なる2チームを選択してください。";
+    container.append(empty);
+    return;
+  }
+  const meetings = getSavedMatchesForAnalysis().filter((match) =>
+    matchContainsTournamentTeam(match, participantA) && matchContainsTournamentTeam(match, participantB))
+    .sort((a, b) => (b.matchInfo.matchDate || "").localeCompare(a.matchInfo.matchDate || ""));
+  if (!meetings.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "保存済みの過去対戦はありません。";
+    container.append(empty);
+    return;
+  }
+  const rows = meetings.map((match) => {
+    const teamA = match.teams.find((team) => isTournamentParticipantTeam(team, participantA));
+    const teamB = match.teams.find((team) => team.id !== teamA.id);
+    const winner = getSetWins(match).find((item) => item.wins >= Math.floor(match.rules.bestOf / 2) + 1);
+    return [match.matchInfo.matchDate || "日付不明", `${teamA.name} vs ${teamB.name}`,
+      match.sets.filter((set) => getSetResult(match, set))
+        .map((set) => `${getScore(set, teamA.id)}-${getScore(set, teamB.id)}`).join(" / "),
+      winner ? getTeamNameForMatch(match, winner.teamId) : "進行中"];
+  });
+  container.append(makeTable(["日付", "対戦", "セット得点", "勝者"], rows, "match-analysis-table"));
+}
+
+function getTeamNameForMatch(match, teamId) {
+  return match.teams.find((team) => team.id === teamId)?.name || "不明";
+}
+
 function renderTournamentManagement() {
   const statusMessage = byId("tournament-status-message");
   statusMessage.textContent = tournamentNotice;
@@ -619,6 +764,9 @@ function renderTournamentManagement() {
   byId("print-tournament-report").disabled = !selected
     || selected.matchIds.length === 0 && !selected.fixtures?.some((fixture) => fixture.manualResult?.sets.length);
   if (!selected) {
+    byId("tournament-performance-summary").replaceChildren();
+    renderOpponentScouting(null);
+    renderHeadToHead(null);
     const message = document.createElement("p");
     message.className = "empty-message";
     message.textContent = store.tournaments.length ? "管理する大会を選択してください。" : "大会を作成すると、試合を登録できます。";
@@ -671,6 +819,177 @@ function renderTournamentManagement() {
   });
   list.append(table);
   renderTournamentFixtures(selected);
+}
+
+function getTournamentPerformanceSummary(tournament) {
+  const participants = new Map(tournament.participants.map((participant) => [participant.code, {
+    participant,
+    played: 0,
+    wins: 0,
+    losses: 0,
+    setsWon: 0,
+    setsLost: 0,
+    pointsScored: 0,
+    pointsConceded: 0,
+  }]));
+  const attackRanks = new Map();
+  const blockRanks = new Map();
+  const matchIds = new Set([
+    ...tournament.matchIds,
+    ...(tournament.fixtures || []).map((fixture) => fixture.matchId).filter(Boolean),
+  ]);
+  const matches = [...matchIds].map((id) => id === currentMatch.id
+    ? currentMatch : store.matches.find((match) => match.id === id)).filter(Boolean);
+  const countedMatchIds = new Set();
+  const participantCodeFor = (team) => team.code
+    || tournament.participants.find((participant) => participant.name === team.name)?.code
+    || "";
+  const recordCompletedMatch = (match) => {
+    if (!isMatchComplete(match) || countedMatchIds.has(match.id)) return;
+    countedMatchIds.add(match.id);
+    const wins = getSetWins(match);
+    const winner = wins.find((item) => item.wins >= Math.floor(match.rules.bestOf / 2) + 1);
+    match.teams.forEach((team, index) => {
+      const code = participantCodeFor(team);
+      const record = participants.get(code);
+      if (!record) return;
+      const ownWins = wins.find((item) => item.teamId === team.id)?.wins || 0;
+      const opponent = match.teams[1 - index];
+      const opponentWins = wins.find((item) => item.teamId === opponent.id)?.wins || 0;
+      record.played += 1;
+      record.setsWon += ownWins;
+      record.setsLost += opponentWins;
+      for (const set of match.sets) {
+        if (!getSetResult(match, set)) continue;
+        record.pointsScored += getScore(set, team.id);
+        record.pointsConceded += getScore(set, opponent.id);
+      }
+      if (winner?.teamId === team.id) record.wins += 1;
+      else record.losses += 1;
+
+      const playerStats = getPerformanceStats(team, match.sets).players;
+      team.players.forEach((player) => {
+        const stats = playerStats.get(player.id);
+        if (!stats) return;
+        const key = `${code}:${player.number}`;
+        const currentPlayer = {
+          code,
+          teamName: record.participant.name,
+          number: player.number,
+          name: player.name,
+          points: stats.attack.points,
+          blocks: stats.block.points,
+        };
+        const attackEntry = attackRanks.get(key) || { ...currentPlayer, points: 0 };
+        const blockEntry = blockRanks.get(key) || { ...currentPlayer, blocks: 0 };
+        attackEntry.points += stats.attack.points;
+        blockEntry.blocks += stats.block.points;
+        attackRanks.set(key, attackEntry);
+        blockRanks.set(key, blockEntry);
+      });
+    });
+  };
+  matches.forEach(recordCompletedMatch);
+
+  (tournament.fixtures || []).filter((fixture) => !fixture.matchId && fixture.manualResult?.sets?.length)
+    .forEach((fixture) => {
+      const winnerCode = getTournamentFixtureWinner(fixture, null);
+      if (!winnerCode) return;
+      const teamA = participants.get(fixture.teamACode);
+      const teamB = participants.get(fixture.teamBCode);
+      if (!teamA || !teamB) return;
+      const setsWonA = fixture.manualResult.sets.filter((set) => set.teamA > set.teamB).length;
+      const setsWonB = fixture.manualResult.sets.filter((set) => set.teamB > set.teamA).length;
+      teamA.played += 1;
+      teamB.played += 1;
+      teamA.setsWon += setsWonA;
+      teamA.setsLost += setsWonB;
+      teamB.setsWon += setsWonB;
+      teamB.setsLost += setsWonA;
+      fixture.manualResult.sets.forEach((set) => {
+        teamA.pointsScored += set.teamA;
+        teamA.pointsConceded += set.teamB;
+        teamB.pointsScored += set.teamB;
+        teamB.pointsConceded += set.teamA;
+      });
+      if (winnerCode === fixture.teamACode) {
+        teamA.wins += 1;
+        teamB.losses += 1;
+      } else {
+        teamB.wins += 1;
+        teamA.losses += 1;
+      }
+    });
+
+  return {
+    teams: [...participants.values()],
+    attackLeaders: [...attackRanks.values()].filter((player) => player.points > 0).sort((a, b) => b.points - a.points),
+    blockLeaders: [...blockRanks.values()].filter((player) => player.blocks > 0).sort((a, b) => b.blocks - a.blocks),
+  };
+}
+
+function rankedRows(players, metric) {
+  let previousScore = null;
+  let rank = 0;
+  return players.map((player, index) => {
+    const score = player[metric];
+    if (score !== previousScore) rank = index + 1;
+    previousScore = score;
+    return [
+      rank,
+      player.teamName,
+      `#${player.number} ${player.name}`,
+      score,
+    ];
+  });
+}
+
+function renderTournamentPerformanceSummary(container, tournament) {
+  container.replaceChildren();
+  if (!tournament) return;
+  const summary = getTournamentPerformanceSummary(tournament);
+  const heading = document.createElement("h3");
+  heading.textContent = "大会成績・個人ランキング";
+  const teamRows = [...summary.teams].sort((a, b) => b.wins - a.wins
+    || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost)
+    || (b.pointsScored - b.pointsConceded) - (a.pointsScored - a.pointsConceded))
+    .map((record, index) => [
+      index + 1,
+      record.participant.name,
+      record.played,
+      record.wins,
+      record.losses,
+      record.played ? `${(record.wins / record.played * 100).toFixed(1)}%` : "—",
+      record.setsLost ? `${(record.setsWon / record.setsLost * 100).toFixed(1)}%` : "—",
+      record.pointsConceded
+        ? `${(record.pointsScored / record.pointsConceded * 100).toFixed(1)}%` : "—",
+    ]);
+  const content = document.createElement("section");
+  content.className = "tournament-performance-summary";
+  content.append(
+    heading,
+    makeTable(["順位", "チーム", "試合", "勝", "敗", "勝率", "得セット率", "得失点率"], teamRows, "tournament-standings-table"),
+  );
+  const attackHeading = document.createElement("h4");
+  attackHeading.textContent = "アタック得点ランキング";
+  const blockHeading = document.createElement("h4");
+  blockHeading.textContent = "ブロックポイントランキング";
+  const noStats = document.createElement("p");
+  noStats.className = "empty-message";
+  noStats.textContent = "個人ランキングは試合終了後、アタック・ブロックの選手記録がある試合から集計します。";
+  content.append(attackHeading);
+  if (summary.attackLeaders.length) {
+    content.append(makeTable(["順位", "チーム", "選手", "得点"], rankedRows(summary.attackLeaders, "points"), "tournament-standings-table"));
+  } else content.append(noStats.cloneNode(true));
+  content.append(blockHeading);
+  if (summary.blockLeaders.length) {
+    content.append(makeTable(["順位", "チーム", "選手", "本数"], rankedRows(summary.blockLeaders, "blocks"), "tournament-standings-table"));
+  } else content.append(noStats);
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "勝率＝勝数÷試合数、得セット率＝取得セット÷失セット、得失点率＝得点÷失点。完了試合のみ集計し、手入力の外部試合は個人ランキングに含みません。";
+  content.append(note);
+  container.append(content);
 }
 
 function renderTournamentFixtures(tournament) {
@@ -799,6 +1118,9 @@ function renderTournamentFixtures(tournament) {
       "tournament-standings-table",
     ));
   }
+  renderTournamentPerformanceSummary(byId("tournament-performance-summary"), tournament);
+  renderOpponentScouting(tournament);
+  renderHeadToHead(tournament);
 }
 
 function updateTournamentResultSetVisibility() {
@@ -1959,6 +2281,57 @@ function renderRallyEntryForm() {
     const selected = (outcomeSelect ? outcomeSelect.value : button.dataset.value) === button.dataset.value;
     button.classList.toggle("selected", selected);
   });
+  const attackZoneField = byId("rally-attack-zone-field");
+  const attackZoneSelect = byId("rally-attack-zone");
+  const attackZoneVisible = ["attack", "backAttack"].includes(kindSelect?.value);
+  if (attackZoneField) attackZoneField.hidden = !attackZoneVisible;
+  if (attackZoneSelect && !attackZoneVisible) attackZoneSelect.value = "";
+  const courseZoneField = byId("rally-course-zone-field");
+  const courseZoneSelect = byId("rally-course-zone");
+  const courseZoneLabel = byId("rally-course-zone-label");
+  const serveCourse = kindSelect?.value === "serve";
+  const receptionCourse = ["reception", "serveReception", "attackReception"].includes(kindSelect?.value);
+  if (courseZoneField) courseZoneField.hidden = !serveCourse && !receptionCourse;
+  if (courseZoneLabel) courseZoneLabel.textContent = `5 ${serveCourse ? "サーブコース（狙った先）" : "レシーブコース（受けた位置）"}`;
+  if (courseZoneSelect && !serveCourse && !receptionCourse) courseZoneSelect.value = "";
+  const courseCourt = byId("rally-course-court");
+  if (courseCourt) {
+    courseCourt.replaceChildren();
+    const oppositeHalf = document.createElement("div");
+    oppositeHalf.className = `rally-course-half${serveCourse ? " active" : ""}`;
+    oppositeHalf.setAttribute("aria-label", serveCourse ? "サーブの狙い先コート" : "相手コート");
+    const nearHalf = document.createElement("div");
+    nearHalf.className = `rally-course-half${receptionCourse ? " active" : ""}`;
+    nearHalf.setAttribute("aria-label", receptionCourse ? "レシーブ位置" : "自チームコート");
+    const appendZones = (half, zones, enabled) => {
+      zones.forEach((zone) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `rally-course-zone-button${courseZoneSelect?.value === String(zone) ? " selected" : ""}`;
+        button.textContent = String(zone);
+        button.setAttribute("aria-label", `ゾーン${zone}${enabled ? "を選択" : ""}`);
+        button.setAttribute("aria-pressed", String(courseZoneSelect?.value === String(zone)));
+        button.disabled = !enabled;
+        if (enabled) {
+          button.addEventListener("click", () => {
+            courseZoneSelect.value = String(zone);
+            courseCourt.querySelectorAll(".rally-course-zone-button").forEach((zoneButton) => {
+              const selected = zoneButton === button;
+              zoneButton.classList.toggle("selected", selected);
+              zoneButton.setAttribute("aria-pressed", String(selected));
+            });
+          });
+        }
+        half.append(button);
+      });
+    };
+    appendZones(oppositeHalf, [5, 6, 1, 4, 3, 2], serveCourse);
+    const net = document.createElement("div");
+    net.className = "rally-course-net";
+    net.textContent = "ネット";
+    appendZones(nearHalf, [1, 6, 5, 2, 3, 4], receptionCourse);
+    courseCourt.append(oppositeHalf, net, nearHalf);
+  }
 
   const recordButton = byId("record-rally-play");
   if (recordButton) recordButton.disabled = !matchHasStarted() || !canScore(currentMatch) || activePlayers.length === 0;
@@ -2073,6 +2446,12 @@ function recordRallyPlay() {
     byId("rally-note").value
       .trim()
       .slice(0, 120);
+  const attackZone = ["attack", "backAttack"].includes(playKind)
+    ? Number(byId("rally-attack-zone").value) || null
+    : null;
+  const courseZone = ["serve", "reception", "serveReception", "attackReception"].includes(playKind)
+    ? Number(byId("rally-course-zone").value) || null
+    : null;
 
   const rallyEvent = addEvent({
     type: "rally-play",
@@ -2081,6 +2460,8 @@ function recordRallyPlay() {
     playKind,
     outcome,
     note,
+    ...(attackZone ? { attackZone } : {}),
+    ...(courseZone ? { courseZone } : {}),
   });
 
   // 得点 → 自チームへ加点
@@ -2124,6 +2505,8 @@ function recordRallyPlay() {
   }
 
   byId("rally-note").value = "";
+  byId("rally-attack-zone").value = "";
+  byId("rally-course-zone").value = "";
 
   clearError();
 }
@@ -2430,7 +2813,7 @@ function getPerformanceStats(team, sets = currentMatch.sets) {
 }
 
 function getPerformanceKind(event) {
-  if (["serveReception", "reception"].includes(event.playKind)) return "reception";
+  if (["serveReception", "reception", "attackReception"].includes(event.playKind)) return "reception";
   return event.playKind;
 }
 
@@ -2970,6 +3353,33 @@ function renderPrintableScoreSheet() {
     getSetResult(currentMatch, set) ? getTeam(getSetResult(currentMatch, set)).name : "進行中",
     getElapsed(set.startedAt, set.endedAt),
   ]));
+  resultDocument.append(byId("match-review").cloneNode(true));
+  const lossRows = currentMatch.teams.map((team) => {
+    const loss = getLostPointBreakdown(team.id);
+    return [team.name, loss.total, ...["サーブミス", "アタックミス", "レシーブミス", "ブロックミス", "反則・ペナルティ", "相手のサーブ得点", "相手のアタック得点", "相手のブロック得点", "その他"]
+      .map((label) => loss.breakdown.get(label))];
+  });
+  appendPrintSection(resultDocument, "失点要因分析", ["チーム", "失点合計", "サーブミス", "アタックミス", "レシーブミス", "ブロックミス", "反則・ペナルティ", "相手サーブ", "相手アタック", "相手ブロック", "その他"], lossRows);
+  appendPrintSection(resultDocument, "異常イベント・訂正履歴", ["項目", "件数"], getAnomalySummary(currentMatch));
+  appendPrintSection(resultDocument, "選手出場時間", ["チーム", "選手", "出場時間"], currentMatch.teams.flatMap((team) => {
+    const timeByPlayer = getPlayerCourtTime(currentMatch, team);
+    return team.players.map((player) => [
+      team.name,
+      `#${player.number} ${player.name}`,
+      `${Math.round((timeByPlayer.get(player.id) || 0) / 60_000)}分`,
+    ]);
+  }));
+  appendPrintSection(resultDocument, "アタックゾーン分析", ["チーム", "ゾーン", "打数", "得点", "決定率", "ミス", "被ブロック"], currentMatch.teams.flatMap((team) =>
+    [...getAttackZoneStats(team)].map(([zone, stats]) => [
+      team.name, `ゾーン${zone}`, stats.attempts, stats.points, formatPercentage(stats.points, stats.attempts), stats.errors, stats.blocked,
+    ])));
+  [
+    "match-set-comparison",
+    "match-benchwork-analysis",
+    "serve-course-analysis",
+    "reception-course-analysis",
+    "libero-analysis",
+  ].forEach((id) => resultDocument.append(byId(id).cloneNode(true)));
 
   const rosterDocument = document.createElement("section");
   rosterDocument.className = "print-document";
@@ -3067,6 +3477,24 @@ function renderPrintableScoreSheet() {
   tournamentTitle.textContent = selectedTournament ? `${selectedTournament.name} 大会試合一覧・結果` : "大会試合一覧・結果";
   tournamentDocument.append(tournamentTitle);
   appendPrintSection(tournamentDocument, "大会試合一覧・結果", ["日付", "ラウンド", "試合番号", "対戦", "セット結果", "勝者", "状態"], tournamentRows);
+  if (selectedTournament) {
+    const tournamentSummary = getTournamentPerformanceSummary(selectedTournament);
+    appendPrintSection(tournamentDocument, "大会成績", ["順位", "チーム", "試合", "勝", "敗", "勝率", "得セット率", "得失点率"],
+      [...tournamentSummary.teams].sort((a, b) => b.wins - a.wins
+        || (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost)
+        || (b.pointsScored - b.pointsConceded) - (a.pointsScored - a.pointsConceded))
+        .map((record, index) => [
+          index + 1, record.participant.name, record.played, record.wins, record.losses,
+          record.played ? `${(record.wins / record.played * 100).toFixed(1)}%` : "—",
+          record.setsLost ? `${(record.setsWon / record.setsLost * 100).toFixed(1)}%` : "—",
+          record.pointsConceded
+            ? `${(record.pointsScored / record.pointsConceded * 100).toFixed(1)}%` : "—",
+        ]));
+    appendPrintSection(tournamentDocument, "アタック得点ランキング", ["順位", "チーム", "選手", "得点"],
+      rankedRows(tournamentSummary.attackLeaders, "points"));
+    appendPrintSection(tournamentDocument, "ブロックポイントランキング", ["順位", "チーム", "選手", "本数"],
+      rankedRows(tournamentSummary.blockLeaders, "blocks"));
+  }
 
   const manualDocument = document.createElement("section");
   manualDocument.className = "print-document";
@@ -3133,8 +3561,11 @@ function getRequiredStartChecks() {
     ["チームB名", Boolean(teamB.name.trim())],
     [`${teamA.name}の選手登録`, teamA.players.length >= requiredSlots],
     [`${teamB.name}の選手登録`, teamB.players.length >= requiredSlots],
+    [`${teamA.name}のキャプテン登録`, teamA.players.some((player) => player.isCaptain)],
+    [`${teamB.name}のキャプテン登録`, teamB.players.some((player) => player.isCaptain)],
     [`${teamA.name}のローテーション・サーブ順`, teamA.rotationLineup.slice(0, requiredSlots).every(Boolean)],
     [`${teamB.name}のローテーション・サーブ順`, teamB.rotationLineup.slice(0, requiredSlots).every(Boolean)],
+    ["第1サーバー設定", Boolean(getExpectedServerPlayerId(currentMatch.sets[0], getServingState(currentMatch, currentMatch.sets[0])))],
     ["ファーストレフェリー", Boolean(info.officials.firstReferee.name.trim())],
     ["セカンドレフェリー", Boolean(info.officials.secondReferee.name.trim())],
     ["スコアラー", Boolean(info.officials.scorer.name.trim())],
@@ -3149,6 +3580,24 @@ function getRequiredStartChecks() {
     })()],
   ];
   return startChecks;
+}
+
+function renderPrestartChecklist() {
+  const checklist = byId("prestart-checklist");
+  const checks = getRequiredStartChecks();
+  const missing = checks.filter(([, complete]) => !complete);
+  checklist.replaceChildren();
+  checks.forEach(([label, complete]) => {
+    const item = document.createElement("li");
+    item.className = complete ? "check-complete" : "check-pending";
+    const icon = document.createElement("span");
+    icon.textContent = complete ? "✓" : "□";
+    const text = document.createElement("span");
+    text.textContent = `${label}: ${complete ? "確認済み" : "未入力"}`;
+    item.append(icon, text);
+    checklist.append(item);
+  });
+  byId("start-match").disabled = missing.length > 0 && !matchHasStarted();
 }
 
 function getMissingStartRequirements() {
@@ -3214,13 +3663,17 @@ function renderScoreChart() {
   select.value = String(selectedNumber);
   const set = currentMatch.sets.find((item) => item.number === selectedNumber);
   const chart = byId("score-progression-chart");
+  const controls = byId("score-timeline-controls");
   chart.replaceChildren();
   const points = getEffectivePointEvents(set);
+  window.clearInterval(scoreTimelineInterval);
+  controls.replaceChildren();
   if (!points.length) {
     const empty = document.createElement("p");
     empty.className = "empty-message";
     empty.textContent = "このセットに有効な得点記録はありません。";
     chart.append(empty);
+    controls.hidden = true;
     return;
   }
   const scores = new Map(currentMatch.teams.map((team) => [team.id, [0]]));
@@ -3235,29 +3688,618 @@ function renderScoreChart() {
   const maxScore = Math.max(...currentMatch.teams.flatMap((team) => scores.get(team.id)), 1);
   const x = (index) => padding.left + index / Math.max(points.length, 1) * (width - padding.left - padding.right);
   const y = (score) => height - padding.bottom - score / maxScore * (height - padding.top - padding.bottom);
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `第${set.number}セットの得点推移`);
-  svg.classList.add("score-progression-svg");
-  const axis = document.createElementNS(svg.namespaceURI, "path");
-  axis.setAttribute("d", `M${padding.left} ${padding.top} V${height - padding.bottom} H${width - padding.right}`);
-  axis.setAttribute("class", "score-chart-axis");
-  svg.append(axis);
-  currentMatch.teams.forEach((team, teamIndex) => {
-    const line = document.createElementNS(svg.namespaceURI, "polyline");
-    line.setAttribute("points", scores.get(team.id).map((score, index) => `${x(index)},${y(score)}`).join(" "));
-    line.setAttribute("class", `score-chart-line ${teamIndex === 0 ? "team-a" : "team-b"}`);
-    line.setAttribute("fill", "none");
-    svg.append(line);
-    const label = document.createElementNS(svg.namespaceURI, "text");
-    label.setAttribute("x", String(padding.left));
-    label.setAttribute("y", String(padding.top + 16 + teamIndex * 18));
-    label.setAttribute("class", `score-chart-label ${teamIndex === 0 ? "team-a" : "team-b"}`);
-    label.textContent = team.name;
-    svg.append(label);
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = String(points.length);
+  slider.value = String(points.length);
+  slider.setAttribute("aria-label", "得点タイムライン");
+  slider.className = "score-timeline-slider";
+  const status = document.createElement("output");
+  status.className = "score-timeline-status";
+  const playButton = document.createElement("button");
+  playButton.type = "button";
+  playButton.className = "button button-secondary";
+  playButton.textContent = "再生";
+  controls.hidden = false;
+  controls.append(playButton, slider, status);
+
+  const draw = () => {
+    const visibleCount = Number(slider.value);
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", `第${set.number}セットの得点推移`);
+    svg.classList.add("score-progression-svg");
+    const axis = document.createElementNS(svg.namespaceURI, "path");
+    axis.setAttribute("d", `M${padding.left} ${padding.top} V${height - padding.bottom} H${width - padding.right}`);
+    axis.setAttribute("class", "score-chart-axis");
+    svg.append(axis);
+    currentMatch.teams.forEach((team, teamIndex) => {
+      const visibleScores = scores.get(team.id).slice(0, visibleCount + 1);
+      const line = document.createElementNS(svg.namespaceURI, "polyline");
+      line.setAttribute("points", visibleScores.map((score, index) => `${x(index)},${y(score)}`).join(" "));
+      line.setAttribute("class", `score-chart-line ${teamIndex === 0 ? "team-a" : "team-b"}`);
+      line.setAttribute("fill", "none");
+      svg.append(line);
+      const label = document.createElementNS(svg.namespaceURI, "text");
+      label.setAttribute("x", String(padding.left));
+      label.setAttribute("y", String(padding.top + 16 + teamIndex * 18));
+      label.setAttribute("class", `score-chart-label ${teamIndex === 0 ? "team-a" : "team-b"}`);
+      label.textContent = team.name;
+      svg.append(label);
+    });
+    chart.replaceChildren(svg);
+    status.textContent = `${visibleCount} / ${points.length}点　${currentMatch.teams[0].name} ${scores.get(currentMatch.teams[0].id)[visibleCount]} - ${scores.get(currentMatch.teams[1].id)[visibleCount]} ${currentMatch.teams[1].name}`;
+  };
+  slider.addEventListener("input", draw);
+  playButton.addEventListener("click", () => {
+    if (scoreTimelineInterval) {
+      window.clearInterval(scoreTimelineInterval);
+      scoreTimelineInterval = undefined;
+      playButton.textContent = "再生";
+      return;
+    }
+    if (Number(slider.value) >= points.length) slider.value = "0";
+    playButton.textContent = "一時停止";
+    draw();
+    scoreTimelineInterval = window.setInterval(() => {
+      const next = Number(slider.value) + 1;
+      slider.value = String(next);
+      draw();
+      if (next >= points.length) {
+        window.clearInterval(scoreTimelineInterval);
+        scoreTimelineInterval = undefined;
+        playButton.textContent = "もう一度再生";
+      }
+    }, 550);
   });
-  chart.append(svg);
+  draw();
+}
+
+function getLostPointBreakdown(teamId, sets = currentMatch.sets) {
+  const labels = ["サーブミス", "アタックミス", "レシーブミス", "ブロックミス", "反則・ペナルティ", "相手のサーブ得点", "相手のアタック得点", "相手のブロック得点", "その他"];
+  const breakdown = new Map(labels.map((label) => [label, 0]));
+  let total = 0;
+  for (const set of sets) {
+    const rallyEvents = new Map(set.events.filter((event) => ["rally-play", "play"].includes(event.type))
+      .map((event) => [event.id, event]));
+    for (const score of getEffectivePointEvents(set)) {
+      if (score.teamId === teamId) continue;
+      total += 1;
+      const rally = rallyEvents.get(score.rallyEventId);
+      let category = "その他";
+      if (rally?.teamId === teamId && rally.outcome === "error") {
+        const kind = getPerformanceKind(rally);
+        if (kind === "serve") category = "サーブミス";
+        else if (["attack", "backAttack"].includes(kind)) category = "アタックミス";
+        else if (kind === "reception") category = "レシーブミス";
+        else if (kind === "block") category = "ブロックミス";
+        else category = "その他";
+      } else if (rally && rally.teamId !== teamId) {
+        const kind = getPerformanceKind(rally);
+        if (kind === "serve") category = "相手のサーブ得点";
+        else if (["attack", "backAttack"].includes(kind)) category = "相手のアタック得点";
+        else if (kind === "block") category = "相手のブロック得点";
+      } else if (score.playType === "opponent-error") category = "その他";
+      else if (score.playType === "penalty") category = "反則・ペナルティ";
+      else if (score.playType === "serve" || score.note?.includes("サーブ2回目失敗")) category = "サーブミス";
+      else if (score.playType === "attack" || score.playType === "back-attack") category = "アタックミス";
+      else if (score.playType === "block") category = "ブロックミス";
+      else if (score.faultPlayerId) category = "その他";
+      breakdown.set(category, breakdown.get(category) + 1);
+    }
+  }
+  return { total, breakdown };
+}
+
+function getSetSideoutBreakStats(teamId, set) {
+  let server = set.initialServiceTeamId;
+  let sideoutOpportunities = 0;
+  let sideoutPoints = 0;
+  let breakOpportunities = 0;
+  let breakPoints = 0;
+  for (const event of getEffectivePointEvents(set)) {
+    if (server === teamId) {
+      breakOpportunities += 1;
+      if (event.teamId === teamId) breakPoints += 1;
+    } else {
+      sideoutOpportunities += 1;
+      if (event.teamId === teamId) sideoutPoints += 1;
+    }
+    server = event.teamId;
+  }
+  return { sideoutOpportunities, sideoutPoints, breakOpportunities, breakPoints };
+}
+
+function getPlayerCourtTime(match, team) {
+  const durations = new Map(team.players.map((player) => [player.id, 0]));
+  for (const set of match.sets) {
+    const events = [...set.events].sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+    const times = events.map((event) => Date.parse(event.time)).filter(Number.isFinite);
+    if (!set.startedAt && times.length === 0) continue;
+    const start = Date.parse(set.startedAt);
+    const startAt = Number.isFinite(start) ? start : Math.min(...times);
+    const end = Date.parse(set.endedAt);
+    const matchEnd = Date.parse(match.matchInfo.endedAt);
+    const latestEvent = times.length ? Math.max(...times) : startAt;
+    const endAt = Number.isFinite(end) && end >= startAt
+      ? end
+      : isMatchComplete(match) && Number.isFinite(matchEnd) ? Math.max(latestEvent, matchEnd) : Math.max(latestEvent, Date.now());
+    let cursor = startAt;
+    const lineup = new Set((set.startingLineups?.[team.id]?.length
+      ? set.startingLineups[team.id] : team.rotationLineup).filter((id) => durations.has(id)));
+    const addInterval = (until) => {
+      const duration = Math.max(0, until - cursor);
+      lineup.forEach((playerId) => durations.set(playerId, durations.get(playerId) + duration));
+      cursor = until;
+    };
+    for (const event of events) {
+      if (event.teamId !== team.id || !["substitution", "libero-substitution"].includes(event.type)) continue;
+      const eventTime = Date.parse(event.time);
+      if (!Number.isFinite(eventTime) || eventTime < cursor || eventTime > endAt) continue;
+      addInterval(eventTime);
+      const outgoing = team.players.find((player) => player.number === event.playerOut || player.name === event.playerOut);
+      const incoming = team.players.find((player) => player.number === event.playerIn || player.name === event.playerIn);
+      if (outgoing && incoming && lineup.has(outgoing.id)) {
+        lineup.delete(outgoing.id);
+        lineup.add(incoming.id);
+      }
+    }
+    addInterval(endAt);
+  }
+  return durations;
+}
+
+function getAnomalySummary(match) {
+  const allEvents = match.sets.flatMap((set) => set.events);
+  const corrections = allEvents.filter((event) => event.type === "score" && event.delta < 0 && event.correctionOf).length;
+  const rows = [
+    ["サーブ順違反の可能性", allEvents.filter((event) => event.type === "service-order-violation").length],
+    ["得点訂正", corrections],
+    ["チャレンジ", allEvents.filter((event) => event.type === "challenge").length],
+    ["罰則・遅延行為", allEvents.filter((event) => event.type === "sanction").length],
+    ["状態チェック警告", match.sets.reduce((count, set) => count + getIntegrityIssues(match, set).length, 0)],
+  ];
+  return rows;
+}
+
+function renderMatchReview(winner, statsA, statsB, receptionA, receptionB) {
+  const container = byId("match-review");
+  container.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "試合総評";
+  container.append(heading);
+  const [teamA, teamB] = currentMatch.teams;
+  const winnerTeam = winner ? getTeam(winner.teamId) : null;
+  const summary = document.createElement("p");
+  if (!winnerTeam) {
+    summary.textContent = "試合進行中のため、現在の記録から暫定評価を表示しています。";
+    container.append(summary);
+  } else {
+    const winStats = winnerTeam.id === teamA.id ? statsA : statsB;
+    const loseStats = winnerTeam.id === teamA.id ? statsB : statsA;
+    const winReception = winnerTeam.id === teamA.id ? receptionA : receptionB;
+    const loseReception = winnerTeam.id === teamA.id ? receptionB : receptionA;
+    const winnerSideout = getSideoutBreakStats(winnerTeam.id);
+    const loserSideout = getSideoutBreakStats(winnerTeam.id === teamA.id ? teamB.id : teamA.id);
+    const winnerSideoutRate = winnerSideout.sideoutOpportunities
+      ? winnerSideout.sideoutPoints / winnerSideout.sideoutOpportunities * 100 : null;
+    const loserSideoutRate = loserSideout.sideoutOpportunities
+      ? loserSideout.sideoutPoints / loserSideout.sideoutOpportunities * 100 : null;
+    const advantages = [
+      [`サービスエース ${winStats.serve.points}本`, winStats.serve.points - loseStats.serve.points],
+      [`ブロックポイント ${winStats.block.points}本`, winStats.block.points - loseStats.block.points],
+      [`アタック得点 ${winStats.attack.points}本`, winStats.attack.points - loseStats.attack.points],
+      [`サイドアウト率 ${formatPercentage(winnerSideout.sideoutPoints, winnerSideout.sideoutOpportunities)}`,
+        winnerSideoutRate !== null && loserSideoutRate !== null ? winnerSideoutRate - loserSideoutRate : 0],
+      [`レセプション成功率 ${winReception === null ? "—" : `${winReception.toFixed(1)}%`}`,
+        winReception !== null && loseReception !== null ? winReception - loseReception : 0],
+    ].filter(([, difference]) => difference > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const winLoss = getLostPointBreakdown(winnerTeam.id);
+    const weaknesses = [
+      ["サーブミス", winLoss.breakdown.get("サーブミス")],
+      ["アタックミス", winLoss.breakdown.get("アタックミス")],
+      ["レシーブミス", winLoss.breakdown.get("レシーブミス")],
+    ].filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]).slice(0, 2);
+    const strengthsText = advantages.length
+      ? `勝因の候補: ${advantages.map(([label]) => label).join("、")}。`
+      : "記録された指標では明確な優位差を判定できませんでした。";
+    const weaknessText = weaknesses.length
+      ? `課題の候補: ${weaknesses.map(([label, count]) => `${label}${count}本`).join("、")}。`
+      : "記録上、主なサーブ・アタック・レシーブミスはありません。";
+    summary.textContent = `${winnerTeam.name}が勝利。${strengthsText} ${weaknessText}`;
+    container.append(summary);
+  }
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "記録された得点・プレーのみから作成した自動要約です。未入力のプレーは評価に含まれません。";
+  container.append(note);
+}
+
+function renderSetComparison() {
+  const container = byId("match-set-comparison");
+  container.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "セット別比較";
+  const [teamA, teamB] = currentMatch.teams;
+  const rows = currentMatch.sets.filter((set) =>
+    set.startedAt || set.events.some((event) => event.type === "score" && event.delta > 0))
+    .flatMap((set) => currentMatch.teams.map((team) => {
+      const stats = getPerformanceStats(team, [set]).total;
+      const service = getSetSideoutBreakStats(team.id, set);
+      return [
+        `第${set.number}セット`,
+        team.name,
+        `${getScore(set, teamA.id)}-${getScore(set, teamB.id)}`,
+        formatPercentage(service.sideoutPoints, service.sideoutOpportunities),
+        formatPercentage(service.breakPoints, service.breakOpportunities),
+        stats.serve.points,
+        formatPercentage(stats.attack.points, stats.attack.attempts),
+      ];
+    }));
+  const table = rows.length
+    ? makeTable(["セット", "チーム", "得点", "サイドアウト率", "ブレイク率", "サービスエース", "アタック決定率"], rows, "match-analysis-table")
+    : null;
+  container.append(heading);
+  if (table) container.append(table);
+  else {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "セットの得点記録後に比較を表示します。";
+    container.append(empty);
+  }
+}
+
+function renderLostPointAnalysis() {
+  const container = byId("match-loss-analysis");
+  container.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "失点要因分析";
+  const labels = ["サーブミス", "アタックミス", "レシーブミス", "ブロックミス", "反則・ペナルティ", "相手のサーブ得点", "相手のアタック得点", "相手のブロック得点", "その他"];
+  const losses = currentMatch.teams.map((team) => ({ team, ...getLostPointBreakdown(team.id) }));
+  const rows = losses.map(({ team, total, breakdown }) => [
+    team.name,
+    total,
+    ...labels.map((label) => breakdown.get(label)),
+  ]);
+  container.append(heading, makeTable(["チーム", "失点合計", ...labels], rows, "match-analysis-table"));
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "得点に紐づいたラリー記録や得点内容から分類します。ラリー詳細を記録していない得点は「その他」になることがあります。";
+  container.append(note);
+}
+
+function renderAnomalyHistory() {
+  const container = byId("match-anomaly-history");
+  container.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "異常イベント・訂正履歴";
+  const rows = getAnomalySummary(currentMatch);
+  container.append(heading, makeTable(["項目", "件数"], rows, "match-analysis-table"));
+}
+
+function renderPlayerPlayingTime() {
+  const container = byId("player-playing-time");
+  container.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "選手出場時間";
+  const rows = currentMatch.teams.flatMap((team) => {
+    const timeByPlayer = getPlayerCourtTime(currentMatch, team);
+    const appearances = getPlayerSetAppearances(team);
+    return team.players.map((player) => [
+      team.name,
+      `#${player.number} ${player.name}`,
+      appearances.playerSetsPlayed.get(player.id) || 0,
+      `${Math.round((timeByPlayer.get(player.id) || 0) / 60_000)}分`,
+    ]);
+  });
+  container.append(heading, makeTable(["チーム", "選手", "出場セット", "出場時間"], rows, "match-analysis-table"));
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "セット開始・終了時刻と登録済みの通常交代・リベロ交代から算出した概算です。交代記録がない場合、正確な出場時間にならないことがあります。";
+  container.append(note);
+}
+
+function getAttackZoneStats(team, sets = currentMatch.sets) {
+  const zones = new Map(Array.from({ length: 6 }, (_, index) => [String(index + 1), {
+    attempts: 0, points: 0, errors: 0, blocked: 0,
+  }]));
+  for (const set of sets) {
+    const blockedAttackIds = getBlockedAttackEventIds(set);
+    const correctedRallyEvents = new Set(set.events
+      .filter((event) => event.type === "score" && event.delta < 0 && event.correctionOf)
+      .map((event) => set.events.find((original) => original.id === event.correctionOf)?.rallyEventId)
+      .filter(Boolean));
+    for (const event of set.events) {
+      if (event.type !== "rally-play" || event.teamId !== team.id
+        || !["attack", "backAttack"].includes(event.playKind)
+        || correctedRallyEvents.has(event.id) || !zones.has(String(event.attackZone))) continue;
+      const zone = zones.get(String(event.attackZone));
+      zone.attempts += 1;
+      if (event.outcome === "point") zone.points += 1;
+      if (event.outcome === "error") zone.errors += 1;
+      if (blockedAttackIds.has(event.id)) zone.blocked += 1;
+    }
+  }
+  return zones;
+}
+
+function renderAttackZoneAnalysis() {
+  const container = byId("attack-zone-analysis");
+  container.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "アタックゾーン分析";
+  container.append(heading);
+  const rows = currentMatch.teams.flatMap((team) => [...getAttackZoneStats(team)].map(([zone, stats]) => [
+    team.name,
+    `ゾーン${zone}`,
+    stats.attempts,
+    stats.points,
+    formatPercentage(stats.points, stats.attempts),
+    stats.errors,
+    stats.blocked,
+  ]));
+  container.append(makeTable(["チーム", "ゾーン", "打数", "得点", "決定率", "ミス", "被ブロック"], rows, "match-analysis-table"));
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "プレー記録でアタックまたはバックを選んだ際にゾーンを指定した記録のみ集計します。サーブコース分析は対象外です。";
+  container.append(note);
+}
+
+function getUncorrectedRallyEvents(set) {
+  const eventsById = new Map(set.events.map((event) => [event.id, event]));
+  const correctedRallyIds = new Set(set.events
+    .filter((event) => event.type === "score" && event.delta < 0 && event.correctionOf)
+    .map((event) => eventsById.get(event.correctionOf)?.rallyEventId)
+    .filter(Boolean));
+  return set.events.filter((event) => event.type === "rally-play" && !correctedRallyIds.has(event.id));
+}
+
+function renderServeCourseAnalysis() {
+  const container = byId("serve-course-analysis");
+  container.replaceChildren(Object.assign(document.createElement("h3"), { textContent: "サーブコース分析" }));
+  const rows = currentMatch.teams.flatMap((team) => team.players.flatMap((player) => {
+    const serves = currentMatch.sets.flatMap(getUncorrectedRallyEvents)
+      .filter((event) => event.teamId === team.id && event.playerId === player.id
+        && event.playKind === "serve" && event.courseZone);
+    if (!serves.length) return [];
+    const counts = Array.from({ length: 6 }, (_, index) => serves.filter((event) => event.courseZone === index + 1).length);
+    return [[team.name, `#${player.number} ${player.name}`, serves.length,
+      ...counts.map((count) => formatPercentage(count, serves.length)),
+      serves.filter((event) => event.outcome === "point").length,
+      serves.filter((event) => event.outcome === "error").length]];
+  }));
+  if (rows.length) {
+    container.append(makeTable(["チーム", "選手", "記録数", "ゾーン1", "ゾーン2", "ゾーン3", "ゾーン4", "ゾーン5", "ゾーン6", "得点", "ミス"],
+      rows, "match-analysis-table"));
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "サーブ時に狙ったコースを記録すると、選手別のコース割合を表示します。";
+    container.append(empty);
+  }
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "ゾーン割合は、コースを入力したサーブ記録を分母に算出します。未指定のサーブは含まれません。";
+  container.append(note);
+}
+
+function renderReceptionCourseAnalysis() {
+  const container = byId("reception-course-analysis");
+  container.replaceChildren(Object.assign(document.createElement("h3"), { textContent: "レシーブコース分析" }));
+  const rows = currentMatch.teams.flatMap((team) => {
+    const receptions = currentMatch.sets.flatMap(getUncorrectedRallyEvents)
+      .filter((event) => event.teamId === team.id
+        && ["reception", "serveReception", "attackReception"].includes(event.playKind)
+        && event.courseZone);
+    return Array.from({ length: 6 }, (_, index) => {
+      const zone = index + 1;
+      const zoneEvents = receptions.filter((event) => event.courseZone === zone);
+      if (!zoneEvents.length) return null;
+      const points = zoneEvents.filter((event) => ["excellent", "good"].includes(event.outcome)).length;
+      const failures = zoneEvents.filter((event) => ["error", "other"].includes(event.outcome)).length;
+      return [team.name, `ゾーン${zone}`, zoneEvents.length,
+        formatPercentage(points, zoneEvents.length), formatPercentage(failures, zoneEvents.length)];
+    }).filter(Boolean);
+  });
+  if (rows.length) container.append(makeTable(["チーム", "受けたコース", "本数", "成功率（優・良）", "失点/その他率"], rows, "match-analysis-table"));
+  else {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "レシーブ時に受けたコースを記録すると、コース別成功率を表示します。";
+    container.append(empty);
+  }
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "成功率は「優」または「良」の割合です。";
+  container.append(note);
+}
+
+function renderLiberoAnalysis() {
+  const container = byId("libero-analysis");
+  container.replaceChildren(Object.assign(document.createElement("h3"), { textContent: "リベロ分析" }));
+  const rows = currentMatch.teams.flatMap((team) => team.players.filter((player) => player.isLibero).map((player) => {
+    const receptions = currentMatch.sets.flatMap(getUncorrectedRallyEvents)
+      .filter((event) => event.teamId === team.id && event.playerId === player.id
+        && ["reception", "serveReception", "attackReception"].includes(event.playKind));
+    const successful = receptions.filter((event) => ["excellent", "good"].includes(event.outcome)).length;
+    const failures = receptions.filter((event) => ["error", "other"].includes(event.outcome)).length;
+    const substitutions = currentMatch.sets.flatMap((set) => set.events)
+      .filter((event) => event.type === "libero-substitution" && event.teamId === team.id
+        && ([player.number, player.name].includes(event.playerIn)
+          || [player.number, player.name].includes(event.playerOut))).length;
+    return [team.name, `#${player.number} ${player.name}`, receptions.length,
+      formatPercentage(successful, receptions.length), formatPercentage(failures, receptions.length), substitutions];
+  }));
+  if (rows.length) container.append(makeTable(["チーム", "リベロ", "レセプション", "成功率（優・良）", "失点/その他率", "交代記録数"],
+    rows, "match-analysis-table"));
+  else {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "リベロが登録されていません。";
+    container.append(empty);
+  }
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "交代記録数はリベロ交代イベントで出入りした回数です。レセプションは該当選手を指定したラリー記録のみを集計します。";
+  container.append(note);
+}
+
+function getNextPointsAfterEvent(set, eventIndex, teamId, limit = 3) {
+  const pointIds = new Set(getEffectivePointEvents(set).map((event) => event.id));
+  const nextPoints = set.events.slice(eventIndex + 1).filter((event) => pointIds.has(event.id)).slice(0, limit);
+  return {
+    own: nextPoints.filter((event) => event.teamId === teamId).length,
+    against: nextPoints.filter((event) => event.teamId !== teamId).length,
+    total: nextPoints.length,
+  };
+}
+
+function renderBenchworkAnalysis() {
+  const container = byId("match-benchwork-analysis");
+  container.replaceChildren(Object.assign(document.createElement("h3"), { textContent: "交代効果・ベンチワーク分析" }));
+  const interventionRows = currentMatch.sets.flatMap((set) => set.events.flatMap((event, index) => {
+    if (!["substitution", "timeout"].includes(event.type)) return [];
+    const team = getTeam(event.teamId);
+    if (!team) return [];
+    const result = getNextPointsAfterEvent(set, index, team.id);
+    if (!result.total) return [];
+    const playerText = event.type === "substitution"
+      ? `${event.playerOut} → ${event.playerIn}` : "タイムアウト後";
+    return [[`第${set.number}セット`, team.name, event.type === "timeout" ? "タイムアウト" : "選手交代",
+      playerText, `${result.own}-${result.against}`, result.own - result.against]];
+  }));
+  const interventionHeading = document.createElement("h4");
+  interventionHeading.textContent = "交代・タイムアウト後の次の3得点";
+  container.append(interventionHeading);
+  if (interventionRows.length) {
+    container.append(makeTable(["セット", "チーム", "介入", "選手", "得点-失点", "差"], interventionRows, "match-analysis-table"));
+  } else {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "交代・タイムアウト後に記録された得点がありません。";
+    container.append(empty);
+  }
+  const pointDifferentials = new Map(currentMatch.teams.flatMap((team) =>
+    team.players.map((player) => [player.id, { team, player, for: 0, against: 0 }])));
+  for (const set of currentMatch.sets) {
+    const lineups = new Map(currentMatch.teams.map((team) => [team.id, new Set(
+      (set.startingLineups?.[team.id]?.length ? set.startingLineups[team.id] : team.rotationLineup).filter(Boolean),
+    )]));
+    const effectiveScores = new Set(getEffectivePointEvents(set).map((event) => event.id));
+    for (const event of set.events) {
+      if (event.type === "score" && effectiveScores.has(event.id)) {
+        for (const team of currentMatch.teams) {
+          const isPoint = event.teamId === team.id;
+          for (const playerId of lineups.get(team.id)) {
+            const stats = pointDifferentials.get(playerId);
+            if (!stats) continue;
+            if (isPoint) stats.for += 1;
+            else stats.against += 1;
+          }
+        }
+      }
+      if (!["substitution", "libero-substitution"].includes(event.type)) continue;
+      const team = getTeam(event.teamId);
+      if (!team) continue;
+      const byIdentifier = (value) => team.players.find((player) => player.number === value || player.name === value);
+      const outgoing = byIdentifier(event.playerOut);
+      const incoming = byIdentifier(event.playerIn);
+      if (outgoing && incoming && lineups.get(team.id).has(outgoing.id)) {
+        lineups.get(team.id).delete(outgoing.id);
+        lineups.get(team.id).add(incoming.id);
+      }
+    }
+  }
+  const onCourt = [...pointDifferentials.values()].filter((item) => item.for + item.against > 0)
+    .sort((a, b) => (b.for - b.against) - (a.for - a.against));
+  const onCourtHeading = document.createElement("h4");
+  onCourtHeading.textContent = "コート上の得失点";
+  container.append(onCourtHeading);
+  if (onCourt.length) container.append(makeTable(["チーム", "選手", "出場中の得点", "失点", "得失点差"],
+    onCourt.map(({ team, player, for: own, against }) => [team.name, `#${player.number} ${player.name}`, own, against, own - against]),
+    "match-analysis-table"));
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "交代・タイムアウト後は直後の最大3得点を集計します。コート上の得失点は登録されたスタメンと交代記録に基づく参考値で、因果関係を示すものではありません。";
+  container.append(note);
+}
+
+function renderMatchEventReplay() {
+  const container = byId("match-event-replay");
+  window.clearInterval(matchReplayInterval);
+  matchReplayInterval = undefined;
+  container.replaceChildren();
+  const heading = document.createElement("h3");
+  heading.textContent = "試合リプレイ（イベント単位）";
+  const events = currentMatch.sets.flatMap((set) => set.events
+    .filter((event) => !["match-start", "set-start"].includes(event.type))
+    .map((event) => ({ setNumber: set.number, event })));
+  container.append(heading);
+  if (!events.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-message";
+    empty.textContent = "リプレイできるイベントがありません。";
+    container.append(empty);
+    return;
+  }
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.min = "0";
+  slider.max = String(events.length);
+  slider.value = String(events.length);
+  slider.className = "score-timeline-slider";
+  slider.setAttribute("aria-label", "試合リプレイのイベント位置");
+  const playButton = document.createElement("button");
+  playButton.type = "button";
+  playButton.className = "button button-secondary";
+  playButton.textContent = "リプレイ再生";
+  const status = document.createElement("output");
+  status.className = "score-timeline-status";
+  const detail = document.createElement("p");
+  detail.className = "score-timeline-status";
+  container.append(playButton, slider, status, detail);
+  const renderFrame = () => {
+    const visible = Number(slider.value);
+    const scores = new Map(currentMatch.teams.map((team) => [team.id, 0]));
+    let activeSetNumber = events[0]?.setNumber || currentMatch.sets[0].number;
+    for (const { setNumber, event } of events.slice(0, visible)) {
+      if (setNumber !== activeSetNumber) {
+        activeSetNumber = setNumber;
+        scores.forEach((_, teamId) => scores.set(teamId, 0));
+      }
+      if (event.type === "score") scores.set(event.teamId, Math.max(0, scores.get(event.teamId) + event.delta));
+    }
+    const frame = events[visible - 1];
+    if (frame) activeSetNumber = frame.setNumber;
+    status.textContent = `第${activeSetNumber}セット / ${visible} / ${events.length} イベント　${currentMatch.teams[0].name} ${scores.get(currentMatch.teams[0].id)} - ${scores.get(currentMatch.teams[1].id)} ${currentMatch.teams[1].name}`;
+    detail.textContent = frame
+      ? `${new Date(frame.event.time).toLocaleTimeString("ja-JP")} — ${getEventDescription(currentMatch, frame.event)}`
+      : "再生開始前";
+  };
+  slider.addEventListener("input", renderFrame);
+  playButton.addEventListener("click", () => {
+    if (matchReplayInterval) {
+      window.clearInterval(matchReplayInterval);
+      matchReplayInterval = undefined;
+      playButton.textContent = "リプレイ再生";
+      return;
+    }
+    if (Number(slider.value) >= events.length) slider.value = "0";
+    playButton.textContent = "一時停止";
+    renderFrame();
+    matchReplayInterval = window.setInterval(() => {
+      slider.value = String(Number(slider.value) + 1);
+      renderFrame();
+      if (Number(slider.value) >= events.length) {
+        window.clearInterval(matchReplayInterval);
+        matchReplayInterval = undefined;
+        playButton.textContent = "もう一度再生";
+      }
+    }, 700);
+  });
+  renderFrame();
 }
 
 function renderMatchAnalysis(winner) {
@@ -3288,6 +4330,17 @@ function renderMatchAnalysis(winner) {
   const causeContainer = byId("match-cause-analysis");
   causeContainer.replaceChildren(Object.assign(document.createElement("h3"), { textContent: winner ? `${getTeam(winner.teamId).name}の勝因分析` : "試合内容の比較" }));
   causeContainer.append(makeTable(["指標", teamA.name, teamB.name, "差（A-B）"], causes, "match-analysis-table"));
+  renderMatchReview(winner, statsA, statsB, receptionA, receptionB);
+  renderSetComparison();
+  renderLostPointAnalysis();
+  renderAnomalyHistory();
+  renderPlayerPlayingTime();
+  renderAttackZoneAnalysis();
+  renderServeCourseAnalysis();
+  renderReceptionCourseAnalysis();
+  renderLiberoAnalysis();
+  renderBenchworkAnalysis();
+  renderMatchEventReplay();
   const playerRows = currentMatch.teams.flatMap((team) => {
     const stats = getPerformanceStats(team).players;
     return team.players.map((player) => {
@@ -3411,6 +4464,7 @@ function renderPageSummaries() {
   ]) appendSummaryRow(confirmation, label, value);
   for (const team of currentMatch.teams) appendSummaryRow(confirmation, team.name, `${team.players.length}名登録`);
   renderConfirmationRotation();
+  renderPrestartChecklist();
 
   const setRows = currentMatch.sets.map((set) => {
     const result = getSetResult(currentMatch, set);
@@ -3875,6 +4929,7 @@ function bindEvents() {
       group?.querySelectorAll("button[data-value]").forEach((button) => {
         button.classList.toggle("selected", button === quickChoice);
       });
+      if (group?.id === "rally-kind-group") renderRallyEntryForm();
       return;
     }
     const scoreButton = target.closest("[data-score-team]");
@@ -3994,7 +5049,10 @@ function bindEvents() {
     window.print();
   });
   byId("print-document-type").addEventListener("change", updatePrintDocumentSelection);
-  byId("score-chart-set").addEventListener("change", renderScoreChart);
+  byId("score-chart-set").addEventListener("change", () => {
+    renderScoreChart();
+    renderMatchEventReplay();
+  });
   byId("finish-match-check").addEventListener("click", () => {
     finishChecklistExpanded = true;
     renderMatchFinishChecklist();
@@ -4006,6 +5064,9 @@ function bindEvents() {
     renderPrintableScoreSheet();
     updatePrintDocumentSelection();
   });
+  byId("opponent-scouting-team").addEventListener("change", () => renderOpponentScouting(getSelectedTournament()));
+  byId("head-to-head-team-a").addEventListener("change", () => renderHeadToHead(getSelectedTournament()));
+  byId("head-to-head-team-b").addEventListener("change", () => renderHeadToHead(getSelectedTournament()));
   byId("add-match-to-tournament").addEventListener("click", addCurrentMatchToTournament);
   byId("add-manual-league-fixture").addEventListener("click", addManualLeagueFixture);
   byId("delete-tournament").addEventListener("click", deleteSelectedTournament);

@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=42">
+  <link rel="stylesheet" href="./style.css?v=46">
   <script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -207,7 +207,7 @@
             </figure>
             <ol class="manual-instructions">
               <li>「開始確認」画面で大会情報、チーム、選手、審判、コート配置、最初のサーブを確認します。</li>
-              <li>必要な入力が足りない場合は、画面上部に不足項目が表示されます。表示された項目を登録してから、もう一度「開始確認」へ戻ります。</li>
+              <li>審判、両チームのキャプテン、ローテーション/サーブ順、第1サーバーなどのチェックがすべて「確認済み」になると、試合開始ボタンが有効になります。不足項目がある場合は、表示された画面へ戻って登録します。</li>
               <li>すべて確認したら<strong>「試合を開始する」</strong>を1回押します。試合画面に移動し、開始時刻が記録されます。</li>
               <li>開始後に登録内容の間違いに気づいた場合は、勝手に入力を続けず、記録責任者に確認して訂正方法を決めてください。</li>
             </ol>
@@ -275,7 +275,9 @@
               <li><b>TTO：</b>大会管理・試合設定で発生点を2箇所まで設定すると到達時に自動記録します。設定外のTTOは手動記録できます。</li>
               <li><b>得点訂正：</b>イベント入力欄で訂正するチーム・点数・理由を選び、説明を入力します。チャレンジ等の訂正内容は得点履歴に残ります。</li>
               <li><b>交代・制裁：</b>選手交代、警告、ペナルティ、退場、失格はイベント画面の各欄から記録します。通常交代の上限・残数とリベロの交代履歴・出場状態を確認できます。</li>
-              <li><b>分析・時間：</b>サイドアウト率、ブレイク率、サーブ効果率、アタック決定率、レセプション成功率は記録に応じて更新されます。試合・セットの経過時間は開始から終了まで表示します。</li>
+              <li><b>分析・時間：</b>サイドアウト率、ブレイク率、サーブ効果率、アタック決定率、レセプション成功率は記録に応じて更新されます。アタック時は攻撃ゾーンを選択し、サーブ/レシーブ時は中央にネットを表示したコート図の番号ボタンからコースを選びます。</li>
+              <li><b>試合結果：</b>失点要因、セット別指標、選手出場時間、異常履歴、試合総評、サーブ/レシーブコース、リベロ成績、交代効果、タイムアウト後の得失点を確認できます。セット得点推移と全セットを通したイベント単位リプレイを備え、試合結果PDFにも各分析表を含めます。記録がないプレーは分析に含まれません。</li>
+              <li><b>大会分析：</b>大会モードでチームの最近10試合と過去の対戦履歴を確認できます。保存済みの完了試合が対象です。</li>
             </ul>
           </section>
 
@@ -289,7 +291,7 @@
               <figcaption><b>画面イメージ 8</b> 帳票選択とプレビュー</figcaption>
             </figure>
             <ol class="manual-instructions">
-              <li>「記録票PDF」を開き、「帳票」の一覧から試合結果、メンバー表、セット結果、個人成績など、出力したい書類を選びます。</li>
+              <li>「記録票PDF」を開き、「帳票」の一覧から試合結果、メンバー表、セット結果、個人成績、大会試合一覧など、出力したい書類を選びます。試合結果には評価レポートと失点・出場時間等の分析も含まれます。</li>
               <li>プレビューでチーム名、得点、記録内容を確認します。</li>
               <li><strong>「選択した帳票を印刷 / PDF保存」</strong>を押します。印刷画面でプリンターを選ぶか、「PDFに保存」を選んで保存先を指定します。</li>
               <li>試合データも残す場合は「JSONを書き出す」を押し、わかる場所に保存します。PDFは読む・配るため、JSONは試合データをバックアップするためのファイルです。</li>
@@ -507,6 +509,10 @@
         <section class="panel content-panel">
           <div id="confirmation-summary" class="confirmation-grid"></div>
           <div id="confirmation-rotation" class="confirmation-rotation"></div>
+          <section class="prestart-check-panel">
+            <h2>試合開始前チェック</h2>
+            <ul id="prestart-checklist" class="prestart-checklist"></ul>
+          </section>
           <div class="confirm-actions"><button class="button button-secondary" data-go="rotation" type="button">ローテーションを修正</button><button id="start-match" class="button button-primary" type="button">試合を開始する</button></div>
         </section>
       </section>
@@ -612,7 +618,13 @@
                     <option value="other">その他</option>
                   </select>
                 </div>
-                <label class="field play-note-field"><span class="rally-step-label"><b>5</b> 内容・備考（任意）</span><input id="rally-note" maxlength="120" placeholder="例: ネットにかけた、二段トス"></label>
+                <label id="rally-attack-zone-field" class="field" hidden><span class="rally-step-label"><b>5</b> アタックゾーン</span><select id="rally-attack-zone"><option value="">未指定</option><option value="1">ゾーン1</option><option value="2">ゾーン2</option><option value="3">ゾーン3</option><option value="4">ゾーン4</option><option value="5">ゾーン5</option><option value="6">ゾーン6</option></select></label>
+                <div id="rally-course-zone-field" class="field rally-course-field" hidden>
+                  <span id="rally-course-zone-label" class="rally-step-label"><b>5</b> コース</span>
+                  <input id="rally-course-zone" type="hidden" value="">
+                  <div id="rally-course-court" class="rally-course-court" aria-label="コースを選択"></div>
+                </div>
+                <label class="field play-note-field"><span class="rally-step-label"><b>6</b> 内容・備考（任意）</span><input id="rally-note" maxlength="120" placeholder="例: ネットにかけた、二段トス"></label>
                 <button id="record-rally-play" class="button button-primary" type="button">このプレーを記録</button>
               </div>
             </section>
@@ -684,7 +696,7 @@
       </section>
 
       <section class="app-page" data-page-panel="tournaments" hidden>
-        <div class="page-heading"><div><span class="eyebrow">TOURNAMENT MODE</span><h1>大会モード</h1><p>大会を作成し、現在の試合を登録して進行状況を確認します。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">TOURNAMENT MODE</span><h1>大会モード</h1><p>大会を作成し、試合状況、勝率・得セット率・得失点率、個人ランキング、相手チーム分析、過去対戦を確認します。</p></div></div>
         <section class="panel content-panel">
           <h2>大会を作成</h2>
           <div class="tournament-create-row">
@@ -711,6 +723,20 @@
           </section>
           <div id="tournament-match-list"></div>
           <div id="tournament-fixture-list"></div>
+          <div id="tournament-performance-summary"></div>
+          <section id="opponent-scouting" class="analysis-panel">
+            <h3>相手チーム分析（最近10試合）</h3>
+            <label class="field" for="opponent-scouting-team">分析するチーム<select id="opponent-scouting-team"></select></label>
+            <div id="opponent-scouting-results"></div>
+          </section>
+          <section id="head-to-head-analysis" class="analysis-panel">
+            <h3>過去の対戦履歴</h3>
+            <div class="tournament-create-row">
+              <label class="field" for="head-to-head-team-a">チームA<select id="head-to-head-team-a"></select></label>
+              <label class="field" for="head-to-head-team-b">チームB<select id="head-to-head-team-b"></select></label>
+            </div>
+            <div id="head-to-head-results"></div>
+          </section>
           <p id="tournament-status-message" class="notice is-warning" role="status" aria-live="polite" hidden></p>
           <p class="notice">予選・リーグの対戦カードは上の入力欄から手動で追加します。トーナメントの初回対戦も各枠の「対戦相手を設定」から指定してください。トーナメントは勝者が次ラウンドへ自動反映されます。アプリ外試合はセット結果を手入力でき、アプリ内で記録した試合は結果が自動反映されます。</p>
         </section>
@@ -773,8 +799,8 @@
       </section>
 
       <section class="app-page" data-page-panel="result" hidden>
-        <div class="page-heading"><div><span class="eyebrow">11. MATCH RESULT</span><h1>試合結果</h1><p>最終結果とセットカウントを確認します。</p></div></div>
-        <section class="panel content-panel"><div id="match-result-summary"></div><button id="finish-match-check" class="button button-primary" type="button" hidden>試合終了前チェックを表示</button><section id="match-finish-checklist" class="match-finish-checklist" hidden></section><section id="match-analysis-report" class="match-analysis-report"><h2>試合分析</h2><label class="field score-chart-filter">得点チャートのセット<select id="score-chart-set"></select></label><div id="score-progression-chart"></div><div id="match-run-analysis"></div><div id="match-cause-analysis"></div><div id="match-mvp-analysis"></div></section></section>
+        <div class="page-heading"><div><span class="eyebrow">11. MATCH RESULT</span><h1>試合結果</h1><p>最終結果、セット別比較、失点要因、出場時間と評価レポートを確認します。</p></div></div>
+        <section class="panel content-panel"><div id="match-result-summary"></div><button id="finish-match-check" class="button button-primary" type="button" hidden>試合終了前チェックを表示</button><section id="match-finish-checklist" class="match-finish-checklist" hidden></section><section id="match-analysis-report" class="match-analysis-report"><h2>試合分析・評価レポート</h2><div id="match-review" class="match-review"></div><label class="field score-chart-filter">得点チャートのセット<select id="score-chart-set"></select></label><div id="score-progression-chart"></div><div id="score-timeline-controls" class="score-timeline-controls" hidden></div><div id="match-event-replay" class="score-timeline-controls"></div><div id="match-run-analysis"></div><div id="match-set-comparison"></div><div id="match-cause-analysis"></div><div id="match-loss-analysis"></div><div id="match-anomaly-history"></div><div id="player-playing-time"></div><div id="match-benchwork-analysis"></div><div id="match-mvp-analysis"></div><div id="attack-zone-analysis"></div><div id="serve-course-analysis"></div><div id="reception-course-analysis"></div><div id="libero-analysis"></div></section></section>
       </section>
 
       <section class="app-page" data-page-panel="verify" hidden>

@@ -1,8 +1,8 @@
-const CACHE_NAME = "jva-score-static-v53";
+const CACHE_NAME = "jva-score-static-v58";
 const APP_FILES = [
   "./",
   "./index.html",
-  "./style.css?v=42",
+  "./style.css?v=46",
   "./app.js",
   "./score.js",
   "./storage.js",

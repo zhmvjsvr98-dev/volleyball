@@ -288,6 +288,11 @@ function validateEvent(event, validTeamIds) {
     return ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "error", "other"].includes(event.playKind)
       && ["success", "point", "error", "touch", "effective", "excellent", "good", "other"].includes(event.outcome)
       && (event.playerId === null || isText(event.playerId, 80))
+      && (event.attackZone === undefined
+        || ["attack", "backAttack"].includes(event.playKind) && Number.isInteger(event.attackZone) && event.attackZone >= 1 && event.attackZone <= 6)
+      && (event.courseZone === undefined
+        || ["serve", "reception", "serveReception", "attackReception"].includes(event.playKind)
+          && Number.isInteger(event.courseZone) && event.courseZone >= 1 && event.courseZone <= 6)
       && isText(event.note || "", 120);
   }
   if (event.type === "substitution") {

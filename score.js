@@ -229,7 +229,8 @@ export function getEventDescription(match, event) {
   if (event.type === "rally-play") {
     const player = team?.players.find((item) => item.id === event.playerId);
     const kinds = {
-      serve: "サーブ", reception: "サーブレシーブ", set: "トス",
+      serve: "サーブ", reception: "サーブレシーブ", serveReception: "サーブレシーブ",
+      attackReception: "アタックレシーブ", set: "トス",
       attack: "アタック", backAttack: "バックアタック", block: "ブロック",
       error: "ミス", other: "その他",
     };
@@ -238,7 +239,12 @@ export function getEventDescription(match, event) {
       touch: "タッチ・継続", effective: "効果あり", excellent: "レシーブ優",
       good: "レシーブ良", other: "その他",
     };
-    return `${teamName} ${player ? `#${player.number} ${player.name} ` : ""}${kinds[event.playKind] || "プレー"}: ${outcomes[event.outcome] || ""}${event.note ? ` / ${event.note}` : ""}${scoreSuffix}`.trim();
+    const zone = event.attackZone
+      ? ` / アタックゾーン${event.attackZone}`
+      : event.courseZone
+        ? ` / ${event.playKind === "serve" ? "サーブコース" : "受球ゾーン"}${event.courseZone}`
+        : "";
+    return `${teamName} ${player ? `#${player.number} ${player.name} ` : ""}${kinds[event.playKind] || "プレー"}: ${outcomes[event.outcome] || ""}${zone}${event.note ? ` / ${event.note}` : ""}${scoreSuffix}`.trim();
   }
   if (event.type === "substitution") return `${teamName} 選手交代 ${event.playerOut} → ${event.playerIn}${scoreSuffix}`;
   if (event.type === "libero-substitution") return `${teamName} リベロ交代 ${event.playerOut || ""} → ${event.playerIn || ""}${scoreSuffix}`;

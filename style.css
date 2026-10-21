@@ -237,7 +237,19 @@ input::placeholder { color: var(--muted); opacity: .72; }
 .integrity-alerts ul, .match-finish-checklist ul { margin: .3rem 0 0; padding-left: 1.3rem; }
 .match-finish-checklist, .match-analysis-report { margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid var(--line); }
 .match-analysis-report h2 { margin-top: 0; }
+.match-review, .tournament-performance-summary { margin: .7rem 0 1rem; padding: .8rem; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
+.match-review h3, .tournament-performance-summary h3 { margin: 0 0 .45rem; }
+.match-review p { margin: .35rem 0; }
+.prestart-check-panel { margin-top: 1rem; padding: .8rem; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
+.prestart-check-panel h2 { margin: 0 0 .5rem; font-size: 1rem; }
+.prestart-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem .8rem; margin: 0; padding: 0; list-style: none; }
+.prestart-checklist li { display: flex; gap: .45rem; align-items: baseline; font-size: .82rem; }
+.prestart-checklist .check-complete { color: var(--success); }
+.prestart-checklist .check-pending { color: var(--danger); }
 .score-chart-filter { max-width: 260px; margin-bottom: .5rem; }
+.score-timeline-controls:not([hidden]) { display: flex; align-items: center; gap: .65rem; margin: .55rem 0 1rem; }
+.score-timeline-slider { min-width: 5rem; flex: 1; }
+.score-timeline-status { min-width: 13rem; font-size: .78rem; font-variant-numeric: tabular-nums; }
 .score-progression-svg { display: block; width: 100%; max-height: 360px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; }
 .score-chart-axis { fill: none; stroke: var(--line); stroke-width: 2; }
 .score-chart-line { stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
@@ -246,7 +258,7 @@ input::placeholder { color: var(--muted); opacity: .72; }
 .score-chart-label { font-size: 12px; font-weight: 800; }
 .score-chart-label.team-a { fill: #38bdf8; }
 .score-chart-label.team-b { fill: #fb923c; }
-.match-analysis-table { width: 100%; margin: .45rem 0 .9rem; border-collapse: collapse; font-size: .8rem; }
+.match-analysis-table { display: block; width: 100%; margin: .45rem 0 .9rem; overflow-x: auto; border-collapse: collapse; font-size: .8rem; white-space: nowrap; }
 .match-analysis-table th, .match-analysis-table td, .finish-check-table th, .finish-check-table td { padding: .5rem; border: 1px solid var(--line); text-align: left; }
 .finish-check-table { width: 100%; border-collapse: collapse; }
 .mvp-score { padding: .65rem; border: 1px solid var(--success); border-radius: 8px; font-weight: 850; }
@@ -255,6 +267,7 @@ input::placeholder { color: var(--muted); opacity: .72; }
 #tournament-participant-options { display: flex; flex-wrap: wrap; gap: .4rem .8rem; }
 .tournament-participant-option { flex-direction: row; align-items: center; }
 .tournament-participant-option input { width: auto; min-height: 0; }
+.tournament-performance-summary h4 { margin: .85rem 0 .35rem; }
 .completed-set-report h3 { margin: 0 0 .5rem; font-size: .9rem; }
 .set-report-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
 .set-report-table th, .set-report-table td { padding: .35rem .5rem; border: 1px solid var(--line); text-align: center; }
@@ -300,6 +313,9 @@ input::placeholder { color: var(--muted); opacity: .72; }
   .field-wide { grid-column: 1 / -1; }
   .live-performance-metrics { grid-template-columns: 1fr; }
   .tournament-create-row, .tournament-toolbar { align-items: stretch; flex-direction: column; }
+  .prestart-checklist { grid-template-columns: 1fr; }
+  .score-timeline-controls:not([hidden]) { align-items: stretch; flex-direction: column; }
+  .score-timeline-status { min-width: 0; }
   .tournament-result-dialog { padding: .8rem; }
   .season-filters { grid-template-columns: 1fr; }
   .rotation-analysis-live { grid-template-columns: 1fr; }
@@ -333,6 +349,133 @@ input::placeholder { color: var(--muted); opacity: .72; }
   .score-team { min-height: 100px; }
   .score-number { font-size: 42pt; }
   .event-log li { padding: .22rem; }
+}
+
+.analysis-panel {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+
+.analysis-panel h3,
+.match-analysis-report > div > h3 {
+  margin-top: 0;
+}
+
+.analysis-panel .field {
+  max-width: 28rem;
+  margin-bottom: 1rem;
+}
+
+.play-entry-form .field[hidden] {
+  display: none !important;
+}
+
+.rally-course-field {
+  grid-column: 1 / -1;
+}
+
+.rally-course-court {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr);
+  gap: 0;
+  width: min(100%, 620px);
+  min-height: 150px;
+  margin-top: .4rem;
+  overflow: hidden;
+  border: 2px solid #49734f;
+  border-radius: 8px;
+  background: #176436;
+}
+
+.rally-course-half {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(42px, 1fr));
+  gap: 3px;
+  padding: 4px;
+  background-color: #176436;
+  background-image: linear-gradient(rgb(255 255 255 / 12%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 12%) 1px, transparent 1px);
+  background-size: 50% 50%;
+}
+
+.rally-course-half.active {
+  background-color: #1d7a42;
+}
+
+.rally-course-zone-button {
+  min-width: 0;
+  min-height: 48px;
+  border: 1px solid rgb(255 255 255 / 48%);
+  border-radius: 5px;
+  background: rgb(5 22 16 / 48%);
+  color: #fff;
+  cursor: pointer;
+  font-size: 1.05rem;
+  font-weight: 900;
+  touch-action: manipulation;
+}
+
+.rally-course-zone-button:disabled {
+  border-color: rgb(255 255 255 / 20%);
+  background: rgb(5 22 16 / 25%);
+  color: rgb(255 255 255 / 75%);
+  cursor: default;
+}
+
+.rally-course-zone-button:not(:disabled):hover {
+  background: rgb(255 255 255 / 20%);
+}
+
+.rally-course-zone-button.selected {
+  border: 3px solid #ffe45c;
+  background: #f4cf31;
+  color: #192414;
+  box-shadow: 0 0 0 2px rgb(10 24 12 / 45%);
+}
+
+.rally-course-net {
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 2px solid #fff;
+  border-left: 2px solid #fff;
+  background: repeating-linear-gradient(0deg, #d9e1e9 0 4px, #6a7885 4px 7px);
+  color: #142030;
+  font-size: .56rem;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 2px #fff;
+  writing-mode: vertical-rl;
+}
+
+div.score-timeline-controls:not([hidden]) {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr);
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin: 1rem 0;
+}
+
+.score-timeline-controls h3,
+.score-timeline-controls output,
+.score-timeline-controls p {
+  grid-column: 1 / -1;
+}
+
+.score-timeline-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .score-timeline-controls {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Multi-page shell styled after the supplied volleyball record screenshots. */
