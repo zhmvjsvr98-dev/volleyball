@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=49">
+  <link rel="stylesheet" href="./style.css?v=50">
   <script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -53,6 +53,15 @@
         <button class="nav-item" data-page="result">試合結果</button>
         <button class="nav-item" data-page="verify">スコアシート確認</button>
         <button class="nav-item" data-page="output">記録票PDF</button>
+        <details id="developer-quality-nav" class="developer-nav-group" hidden>
+          <summary>品質保証</summary>
+          <button class="nav-item" type="button" data-page="quality-assurance" data-qa-preset="durability">耐久試験</button>
+          <button class="nav-item" type="button" data-page="quality-assurance" data-qa-preset="load">負荷試験</button>
+          <button class="nav-item" type="button" data-page="quality-assurance" data-qa-preset="video">動画同期試験</button>
+          <button class="nav-item" type="button" data-page="quality-assurance" data-qa-preset="integrity">データ整合性試験</button>
+          <button class="nav-item" type="button" data-page="quality-assurance" data-qa-preset="analytics">分析機能試験</button>
+          <button class="nav-item" type="button" data-page="quality-assurance" data-qa-preset="regression">一括回帰試験</button>
+        </details>
       </nav>
       <div class="sidebar-footer">つなぐ、支える。<br>バレーボールの未来へ</div>
     </aside>
@@ -92,7 +101,7 @@
             <span class="eyebrow">JVA VOLLEYBALL OFFICIAL ELECTRONIC SCORE SHEET</span>
             <h2>はじめての試合記録ガイド</h2>
             <p>画面のイメージを見ながら、準備から試合後の保存まで順番に進めましょう。</p>
-            <div class="manual-cover-route"><span>1 試合を準備</span><b>→</b><span>2 選手を登録</span><b>→</b><span>3 試合を開始</span><b>→</b><span>4 得点を記録</span><b>→</b><span>5 保存</span></div>
+            <div class="manual-cover-route"><span>1 試合を準備</span><b>→</b><span>2 選手を登録</span><b>→</b><span>3 試合を開始</span><b>→</b><span>4 得点・イベントを記録</span><b>→</b><span>5 分析・保存</span></div>
             <p class="manual-smallprint">画面イメージは操作場所を示す図です。表示される選手名、得点、内容は例です。</p>
           </header>
 
@@ -109,7 +118,8 @@
                     <span>ホーム</span><span>取扱いマニュアル</span><span class="is-selected">大会管理・試合設定</span>
                     <span>メンバー登録</span><span>ローテーション設定</span><span>審判登録</span><span>開始確認</span>
                     <span class="mock-navigation-label">試合・大会</span>
-                    <span>試合画面</span><span>大会モード</span><span>選手シーズン成績</span><span>ラリー・イベント記録</span>
+                    <span>試合画面</span><span>大会モード</span><span>マルチコート管理</span><span>ラリー・イベント記録</span>
+                    <span>動画同期</span><span>選手シーズン成績</span><span>審判トレーニング</span><span>イベント監査ログ</span>
                     <span class="mock-navigation-label">結果・出力</span>
                     <span>スコアシート</span><span>セット履歴</span><span>試合結果</span><span>スコアシート確認</span><span>記録票PDF</span>
                   </nav>
@@ -125,7 +135,8 @@
             </figure>
             <div class="manual-menu-guide">
               <div><b>試合の準備</b><p>大会管理・試合設定 → メンバー登録 → ローテーション設定 → 審判登録 → 開始確認</p></div>
-              <div><b>試合中・大会管理</b><p>試合画面、ラリー・イベント記録、大会モード、選手シーズン成績</p></div>
+              <div><b>試合中・大会管理</b><p>試合画面、ラリー・イベント記録、動画同期、大会モード、マルチコート管理</p></div>
+              <div><b>分析・記録管理</b><p>選手シーズン成績、審判トレーニング、イベント監査ログ</p></div>
               <div><b>結果の確認・出力</b><p>スコアシート、セット履歴、試合結果、スコアシート確認、記録票PDF</p></div>
             </div>
             <ol class="manual-instructions">
@@ -329,6 +340,94 @@
               <li>結果を印刷する場合は<strong>「大会報告書を印刷 / PDF」</strong>を押します。参加チーム、順位、アプリ内・外部試合の結果、個人ランキング、MVP、ベスト6、審判成績を含む報告書を生成します。印刷画面で「PDFに保存」を選んでください。MVP・ベスト6は記録された個人成績による評価順で、ポジション別の選考ではありません。</li>
             </ol>
             <p class="manual-tip"><b>使い分け：</b>アプリで記録する試合は「試合を作成（自動反映）」、アプリ外で行われた試合は「外部試合の結果入力」を選びます。同じ対戦を二重に登録しないよう、試合の記録方法を決めてから入力してください。</p>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">10</span><div><h3>試合動画を登録してイベントと同期する</h3><p>動画を端末から読み込み、試合イベントの時刻と映像上の位置を同期ポイントで結びます。</p></div></div>
+            <ol class="manual-instructions">
+              <li>「大会管理・試合設定」の「動画管理」で対象動画を選びます。再生できる形式はブラウザーと動画コーデックに依存します。試合ごとに登録できる動画は1本です。</li>
+              <li>「動画同期」を開き、イベントを選択して動画をそのイベントの場面まで移動し、一時停止します。「同期ポイント登録」を押すと、そのイベントと現在の再生位置が対応付けられます。同じイベントのポイントを登録し直すと位置が更新されます。</li>
+              <li>動画とイベントの時刻差が一定でない場合や、動画を途中編集した場合は、編集箇所の前後など複数の場面で同期ポイントを登録してください。ジャンプ位置は、対象イベントに時刻が最も近い同期ポイントを基準に差分を加えて計算します。同期ポイントが少ない区間や編集境界では位置がずれることがあるため、再生位置を確認して必要に応じてポイントを追加します。</li>
+              <li>試合イベント履歴の「動画へ移動」や動画同期画面のイベント一覧から、対応する映像位置へ移動できます。「前の同期ポイント」「次の同期ポイント」で登録位置を確認できます。</li>
+              <li>チーム・選手・プレー/ミス・ローテーションでイベントを絞り、「抽出イベントを連続再生」を押すと、映像位置を計算できるイベントを順番に再生します。再生には対象動画と有効な同期ポイントが必要です。</li>
+              <li>動画ファイル本体は保存されません。保存されるのはファイル名と同期ポイントです。ページ再読み込み後は試合設定で同じ動画ファイルを再選択してください。別のファイル名の動画に切り替えると既存ポイントが消えるため、確認メッセージを読んでから操作してください。</li>
+            </ol>
+            <p class="manual-tip"><b>注意：</b>動画時刻はイベントの記録時刻を基準に計算されます。端末時計のずれやイベント入力の遅れは同期精度に影響します。大会で使う前に、複数イベントで実際の映像位置を確認してください。</p>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">11</span><div><h3>試合結果・選手分析・大会報告を確認する</h3><p>試合後の振り返りや大会全体の集計を、記録されたデータから確認します。</p></div></div>
+            <ul class="manual-bullets">
+              <li><b>試合結果：</b>「試合結果」では得点推移、セット比較、失点要因、選手出場時間、記録の異常・訂正、個人成績に基づく評価、データ品質スコアなどを確認します。データ品質スコアは記録の整合状況を示す目安で、記録の正確性を保証するものではありません。</li>
+              <li><b>コース・動画分析：</b>試合中に入力された攻撃ゾーンやサーブ/レシーブコースを集計します。位置が不明で「記録しない」を選んだプレーはコース集計に含まれません。動画クリップは動画登録・同期があるイベントのみ利用できます。</li>
+              <li><b>選手シーズン成績：</b>チームと期間を選ぶと、保存済み試合の選手成績、年度比較、チームカルテを表示します。チームカルテの得意・改善候補、チームDNA、スタメン/ローテーション案は、登録済み試合の集計・履歴から作る参考情報です。</li>
+              <li><b>大会モード：</b>大会に登録された完了試合から順位、チーム成績、個人成績ランキング、得点源ヒートマップ、相手分析、対戦履歴を確認できます。アプリ外試合の手入力結果は順位には使われますが、プレーイベントがないため個人・得点源の分析には含まれません。</li>
+              <li><b>大会報告書：</b>「大会報告書を印刷 / PDF」から参加チーム、順位、全試合結果、個人成績、MVP・ベスト6、審判成績を出力します。MVP・ベスト6は登録された成績の評価順で選出され、ポジション別選考や大会公式表彰を保証するものではありません。</li>
+              <li><b>マルチコート管理：</b>大会を選択すると、登録した会場・コートごとに試合の未開始・進行中・終了状況を一覧できます。試合を大会に登録し、各試合の会場・コート情報を入力してください。</li>
+            </ul>
+            <p class="manual-tip"><b>分析の前提：</b>分析・予測・提案は入力された記録から算出する参考情報です。欠損や入力間違い、試合数の偏りが結果に影響します。コーチ・審判・大会責任者が元記録を確認して判断してください。</p>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">12</span><div><h3>審判トレーニング・監査ログ・品質保証を使う</h3><p>講習・記録確認・開発時の試験に使用する補助機能です。</p></div></div>
+            <ul class="manual-bullets">
+              <li><b>審判トレーニング：</b>保存済み試合を選んで問題を作成します。タイムアウト前後の実際のイベント記録順を教材として表示します。正解は保存データ上の順序であり、競技規則の正誤判定ではありません。</li>
+              <li><b>イベント監査ログ：</b>試合データや選手登録などの追加・訂正・削除履歴を通常の試合イベントとは別に確認し、「監査ログを書き出す」からJSONで保存します。ログはこの端末のブラウザーに保存され、暗号学的な改ざん防止やユーザー認証を提供するものではありません。</li>
+              <li><b>品質保証（開発者向け）：</b>URLに <code>?developer=1</code> を付けたときだけメニューに表示されます。耐久・負荷・動画同期・データ整合性・分析・一括回帰・ストレス試験を選び、結果をJSON出力できます。大規模試験はメモリや一時ストレージを多く使うため、必要なときだけ実行してください。</li>
+              <li><b>試験データの扱い：</b>品質保証の合成データは本番データと別の一時データベースに保存され、試験終了時に削除されます。ブラウザーを閉じるなどして試験が中断された場合は、レポートの削除結果を確認してから再度実行してください。</li>
+            </ul>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">13</span><div><h3>試合設定テンプレートとチーム履歴を使う</h3><p>繰り返し利用する競技条件やチーム情報を準備し、入力ミスを減らします。</p></div></div>
+            <ol class="manual-instructions">
+              <li>「大会管理・試合設定」の「初期テンプレート」で、標準、高校男子/女子、中学男子/女子、ビーチから近い条件を選びます。テンプレートを選ぶと競技条件の入力欄が更新されます。適用後に大会要項と照合し、セット数・目標点・点差・交代/タイムアウト上限・ローテーション設定を確認してください。</li>
+              <li>大会固有の条件を繰り返し使う場合は、「ローカルルールJSONを登録」に許可された設定値を入力し、「JSON設定を登録」を押します。登録後は「適用するルール設定」から選びます。設定は端末内に保存され、必要なら選択中の設定をJSON出力できます。任意のプログラムや大会要項ファイルを読み込む機能ではありません。</li>
+              <li>「メンバー登録」では背番号・氏名・キャプテン等を入力します。チームごとにチームコードを設定して履歴を保存すると、次の試合で「履歴 / コードで読み込む」から再利用できます。チームコードは大会をまたいだチーム識別に使用するため、同じチームには同じコードを使います。</li>
+              <li>履歴の読み込み後は、当日の登録選手、背番号、キャプテン、ユニフォーム色が最新か確認します。過去のメンバーが自動で現在の大会登録と一致するとは限りません。</li>
+              <li>試合設定・メンバー・ローテーション・審判登録を順に確認したら「開始確認」を開きます。必要項目が未確認の場合は、チェックに表示された画面へ戻って修正します。開始確認後に試合を開始すると、試合条件や登録情報の編集が制限されます。</li>
+            </ol>
+            <p class="manual-tip"><b>ローカルルールの注意：</b>テンプレートや保存済み設定は入力補助です。大会要項や最新競技規則の確認に代わるものではありません。目標点等を変更した場合は、両チームと記録担当者で開始前に共有してください。</p>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">14</span><div><h3>試合中の記録担当者の基本手順</h3><p>得点、ラリー詳細、試合イベントを混同せず、一つのラリーを一度だけ記録します。</p></div></div>
+            <ol class="manual-instructions">
+              <li><b>ラリー直後：</b>主審の判定と得点を確認してから入力します。シンプルに得点を残す場合は、得点した側の「＋1」を押し、表示されたプレー種別・選手等を選んで確定します。</li>
+              <li><b>詳細を記録する場合：</b>ラリー記録を開き、チーム、コート内選手、プレー、結果を順に選択して各動作を登録します。得点または失点の結果を登録するとスコアも更新されるので、そのラリーについて別途「＋1」を押しません。</li>
+              <li><b>サーブ順：</b>ローテーションを使う試合では「実際にサーブした選手」を選ぶと、登録された順番との照合に使われます。警告は入力内容に基づく注意表示であり、実際のサーブを自動認識するものではありません。</li>
+              <li><b>位置情報：</b>アタックは攻撃ゾーン、サーブ/レシーブはコート図のコースを必要に応じて選択します。見ていない、記録がないなど不明なときは「記録しない」を選び、推測で位置を入力しないでください。</li>
+              <li><b>試合イベント：</b>タイムアウトは要求チームを確認し、交代は退く選手・入る選手、リベロ交代は対象者を確認してから記録します。警告・罰則、チャレンジ、メディカル対応も、画面の対象チーム・選手・結果を確認して記録します。</li>
+              <li><b>セット終了時：</b>セット点、勝者、試合方式に応じた次セットのコート・サーバーを確認します。自動記録されたコートチェンジやTTOをイベント履歴で確認し、次セットの初期配置が正しいことを確かめます。</li>
+              <li><b>試合中の確認：</b>保存状態の表示と試合イベント履歴を定期的に確認します。画面上部の保存エラーが消えない場合は、入力を続ける前に表示内容を確認し、利用可能なら帳票出力から現在の試合JSONを書き出します。</li>
+            </ol>
+            <div class="manual-callout-row"><span class="manual-callout-number">!</span><p><b>最重要：</b>同じラリーに「＋1」とラリー記録の「得点/失点」を両方使うと二重加点になります。記録方法をラリーごとに決め、確定後にスコアとイベント履歴を確認してください。</p></div>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">15</span><div><h3>入力ミスの訂正と試合データの保全</h3><p>誤りに気付いた時点で状況を確認し、履歴が追える方法で修正・保存します。</p></div></div>
+            <ul class="manual-bullets">
+              <li><b>直前の入力：</b>誤入力の直後で、まだ次の操作をしていない場合は「直前の記録を取り消す」を使います。取り消し可能な対象は画面の状態によります。取り消し後にスコアとイベント履歴が意図どおりか確認します。</li>
+              <li><b>過去の得点訂正：</b>得点訂正欄でチーム、加算/取消、理由（チャレンジ判定・記録訂正・その他）、説明を選んで「訂正を記録」します。訂正は理由とともにイベント履歴へ追加されます。訂正内容と現在の得点を記録責任者間で照合してください。</li>
+              <li><b>試合履歴の切替：</b>画面上部の「保存済み試合」から試合を切り替えます。切替後に大会名、両チーム、日付、スコアが対象試合のものか確認してから操作してください。</li>
+              <li><b>PDFとJSONの違い：</b>印刷/PDFは閲覧・配布用の帳票です。「JSONを書き出す」は現在選択中の試合データのバックアップです。JSONは別の安全な場所に保管し、復元が必要な場合は「JSONを読み込む」から選びます。</li>
+              <li><b>JSON読み込み：</b>読み込むファイルはアプリが出力した試合JSONを使用します。同じ試合IDがある場合は置き換え確認が表示されます。置き換え前に現在データのJSONを別途保存してください。読み込み後はチーム名・得点・セット履歴を確認します。</li>
+              <li><b>保存範囲：</b>試合履歴・チーム履歴・大会情報は利用中のブラウザー内に保存され、端末間では自動同期されません。ブラウザーデータの削除、端末故障、保存容量不足で失われる可能性があります。重要な試合は試合終了後だけでなく、運用ルールに応じて途中経過もJSONでバックアップしてください。</li>
+              <li><b>動画データ：</b>動画本体はJSONバックアップにも含まれません。復元後に動画を再選択し、必要な同期ポイントを確認してください。</li>
+            </ul>
+          </section>
+
+          <section class="manual-section">
+            <div class="manual-section-heading"><span class="manual-step">16</span><div><h3>よくあるつまずきと確認方法</h3><p>画面の表示や結果が想定と異なるときは、次の順に確認します。</p></div></div>
+            <ul class="manual-bullets">
+              <li><b>試合開始ボタンを押せない：</b>「開始確認」の未完了項目を読み、チーム名、選手、審判、キャプテン、ローテーションと最初のサーブを登録・確認します。</li>
+              <li><b>セットが終了しない / 早く終了する：</b>試合設定の競技形式、試合方式、セットごとの目標点、勝利に必要な点差を大会要項と照合します。最初のイベント記録後は競技条件がロックされる場合があります。</li>
+              <li><b>サーブ順の警告が出る：</b>実際にサーブした選手の選択、セット開始サーバー、コート上の配置、ローテーション設定を確認します。警告だけで判定を確定せず、公式記録担当者と実状を照合してください。</li>
+              <li><b>分析に数値が出ない：</b>対象となるプレーや選手情報が記録されているか確認します。対象データがない指標は「—」等になり、外部試合のスコア手入力だけでは個人プレー分析を作成できません。</li>
+              <li><b>動画へ移動できない：</b>試合設定で動画を再選択し、再生可能な状態になるまで待ちます。対象イベントと同期ポイントが存在するか、動画時間を超えていないかを確認します。別ファイルに切り替えた場合は同期ポイントを登録し直します。</li>
+              <li><b>データが保存されない / エラー表示が出る：</b>ブラウザーの保存容量、空き容量、プライベートブラウズ設定を確認します。画面に保存エラーが出ている場合は保存済みとみなさず、エラー解消とJSONバックアップを確認してからページを閉じます。</li>
+              <li><b>更新後に古い画面が表示される：</b>ページを再読み込みします。オフライン利用中は新しいファイルを取得できない場合があるため、ネットワークに接続して再読み込みした後に、表示される機能と保存試合を確認します。</li>
+            </ul>
           </section>
 
           <section class="manual-section manual-final-check">
@@ -774,6 +873,37 @@
           <div class="output-actions"><button id="play-filtered-video-events" class="button button-primary" type="button">抽出イベントを連続再生</button><button id="stop-filtered-video-events" class="button button-secondary" type="button" disabled>連続再生を停止</button></div>
           <p id="video-filter-summary" class="stats-note"></p>
           <ol id="video-event-clips" class="event-log"></ol>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="quality-assurance" hidden>
+        <div class="page-heading">
+          <div><span class="eyebrow">DEVELOPER QUALITY GATE</span><h1>品質保証</h1><p>生成データだけを専用の一時IndexedDBで試験します。本番の試合データ・チーム履歴・大会情報は変更しません。</p></div>
+        </div>
+        <section class="panel content-panel">
+          <p class="notice is-warning">開発者モード（URLに <code>?developer=1</code>）でのみ表示されます。最大負荷試験はブラウザーの空き容量・メモリに応じて長時間かかる場合があります。生成データは実行後に自動削除します。</p>
+          <div class="form-grid">
+            <label class="field" for="qa-suite-select">実行する試験<select id="qa-suite-select">
+              <option value="regression">一括回帰試験</option><option value="durability">耐久試験</option><option value="load">負荷試験</option>
+              <option value="video">動画同期試験</option><option value="integrity">データ整合性試験</option><option value="analytics">分析機能試験</option><option value="stress">ストレス試験</option>
+            </select></label>
+            <label class="field" for="qa-match-count">大量試合作成<select id="qa-match-count"><option value="100">100試合</option><option value="500">500試合</option><option value="1000">1,000試合</option></select></label>
+            <label class="field" for="qa-event-count">大量イベント試験<select id="qa-event-count"><option value="100">100イベント</option><option value="500">500イベント</option><option value="1000">1,000イベント</option><option value="2000">2,000イベント</option></select></label>
+            <label class="field" for="qa-stress-event-count">ストレス試験イベント<select id="qa-stress-event-count"><option value="0">通常（一括回帰では省略）</option><option value="50000">5万イベント</option><option value="500000">50万イベント</option></select></label>
+          </div>
+          <p class="stats-note">最大ストレス設定では500チーム・100シーズン・5万選手・最大50万イベントを、隔離DBへ分割して書き込み・読込・検索します。1,000試合も同じく本番DBと別の一時DBで測定します。</p>
+          <div class="output-actions">
+            <button id="run-quality-tests" class="button button-primary" type="button">選択した試験を実行</button>
+            <button id="run-all-quality-tests" class="button button-primary" type="button">すべて実行</button>
+            <button id="export-quality-report" class="button button-secondary" type="button" disabled>結果をJSON出力</button>
+            <button id="clear-quality-report" class="button button-secondary" type="button">レポートを消去</button>
+          </div>
+          <progress id="qa-progress" max="100" value="0" hidden></progress>
+          <p id="qa-run-status" class="notice" role="status" aria-live="polite">試験データは一時DBから自動削除されます。</p>
+        </section>
+        <section class="panel content-panel">
+          <div id="quality-assurance-summary" class="analysis-panel"><h2>品質保証レポート</h2><p>まだ試験を実行していません。</p></div>
+          <div id="quality-assurance-results"></div>
         </section>
       </section>
 

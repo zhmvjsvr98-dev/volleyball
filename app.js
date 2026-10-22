@@ -5,6 +5,10 @@ import {
 import {
   buildStore, createEmptyMatch, createId, MAX_MATCHES, readStore, validateImport, validateRulePlugin, writeStore,
 } from "./storage.js";
+import {
+  createQualityEventMatch, createQualityMatch, createQualityStressRecords, deleteQualityDatabase,
+  isQualityMatchValid, openQualityDatabase, readQualityRecords, searchQualityRecords, writeQualityRecords,
+} from "./quality-assurance.js";
 
 const byId = (id) => document.getElementById(id);
 const elements = {
@@ -89,6 +93,9 @@ let activeVideoFileName = "";
 let activeVideoUrl = "";
 let videoPlaybackQueue = [];
 let videoPlaybackQueueIndex = -1;
+let developerModeEnabled = false;
+let qualityRunActive = false;
+let lastQualityReport = null;
 const autoPreparedTournamentReports = new Set();
 let refereeQuestionOffset = 0;
 
@@ -2656,6 +2663,7 @@ function renderSetStrip() {
 
 function renderEvents() {
   const events = currentSet().events;
+  const videoEventById = new Map(getAllVideoEvents().map((item) => [item.event.id, item.event]));
   elements.eventLog.replaceChildren();
   elements.emptyLog.hidden = events.length > 0;
   for (const event of [...events].reverse()) {
@@ -2667,7 +2675,7 @@ function renderEvents() {
     videoButton.className = "button button-secondary event-video-button";
     videoButton.dataset.videoEvent = event.id;
     videoButton.textContent = "動画へ移動";
-    const videoPosition = getVideoEventPosition(event.id);
+    const videoPosition = getVideoEventPosition(event.id, videoEventById);
     videoButton.disabled = !isVideoReady() || !Number.isFinite(videoPosition) || videoPosition < 0;
     if (videoButton.disabled) videoButton.title = "動画を再選択し、イベントの同期ポイントを登録してください。";
     row.append(videoButton);
@@ -2750,9 +2758,10 @@ function isVideoReady() {
 }
 
 function getPlayableVideoClipItems() {
+  const videoEventById = new Map(getAllVideoEvents().map((item) => [item.event.id, item.event]));
   return isVideoReady()
     ? getVideoClipItems().filter(({ event }) => {
-      const position = getVideoEventPosition(event.id);
+      const position = getVideoEventPosition(event.id, videoEventById);
       return Number.isFinite(position) && position >= 0;
     })
     : [];
@@ -2862,13 +2871,14 @@ function renderVideoPanel() {
   const clipList = byId("video-event-clips");
   clipList.replaceChildren();
   const rotations = getVideoEventRotations();
+  const videoEventById = new Map(events.map((item) => [item.event.id, item.event]));
   for (const { event, setNumber } of clips) {
     const item = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
     button.className = "button button-secondary event-video-button";
     button.dataset.videoEvent = event.id;
-    const videoPosition = getVideoEventPosition(event.id);
+    const videoPosition = getVideoEventPosition(event.id, videoEventById);
     button.disabled = !isVideoReady() || !Number.isFinite(videoPosition) || videoPosition < 0;
     if (!button.disabled) playableClipCount += 1;
     else button.title = "動画を再選択し、イベントの同期ポイントを登録してください。";
@@ -2918,8 +2928,7 @@ function seekAdjacentSyncPoint(direction) {
   player.currentTime = candidate.videoTime;
 }
 
-function getVideoEventPosition(eventId) {
-  const eventById = new Map(getAllVideoEvents().map((item) => [item.event.id, item.event]));
+function getVideoEventPosition(eventId, eventById = new Map(getAllVideoEvents().map((item) => [item.event.id, item.event]))) {
   const target = eventById.get(eventId);
   if (!target || !Number.isFinite(Date.parse(target.time))) return null;
   const points = currentMatch.video.syncPoints
@@ -2971,6 +2980,615 @@ async function jumpToVideoEvent(eventId, autoplay = false) {
     }
   }
   return true;
+}
+
+function qualityYield() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function qualityNow() {
+  return performance.now();
+}
+
+function qualityProgress(message, completed = 0, total = 0) {
+  const status = byId("qa-run-status");
+  if (status) status.textContent = message;
+  const progress = byId("qa-progress");
+  if (progress && total > 0) {
+    progress.hidden = false;
+    progress.value = Math.min(100, Math.round(completed / total * 100));
+  }
+}
+
+function renderQualityReport(report = lastQualityReport) {
+  if (!report) return;
+  const summary = report.summary;
+  byId("quality-assurance-summary").replaceChildren(
+    Object.assign(document.createElement("h2"), { textContent: "品質保証レポート" }),
+    Object.assign(document.createElement("p"), { textContent: `開始: ${report.startedAt} / 終了: ${report.finishedAt || "実行中"}` }),
+    Object.assign(document.createElement("p"), { textContent: `総試験数 ${summary.total}　成功 ${summary.passed}　失敗 ${summary.failed}　平均 ${summary.averageProcessingMs.toFixed(1)} ms　最大 ${summary.maxProcessingMs.toFixed(1)} ms` }),
+    Object.assign(document.createElement("p"), { textContent: `未処理例外 ${summary.unhandledExceptions}　データ破損 ${summary.dataCorruption}　整合性エラー ${summary.integrityErrors}　集計エラー ${summary.aggregationErrors}　警告 ${summary.warnings}` }),
+  );
+  const table = document.createElement("table");
+  table.className = "match-analysis-table";
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  ["試験", "結果", "処理時間", "詳細"].forEach((label) => {
+    const cell = document.createElement("th");
+    cell.textContent = label;
+    headRow.append(cell);
+  });
+  head.append(headRow);
+  table.append(head);
+  const body = document.createElement("tbody");
+  for (const test of report.tests) {
+    const row = document.createElement("tr");
+    const details = Array.isArray(test.details) ? test.details.join(" / ") : test.details || test.error || "";
+    [test.name, test.status, `${test.durationMs.toFixed(1)} ms`, details].forEach((value) => {
+      const cell = document.createElement("td");
+      cell.textContent = String(value);
+      row.append(cell);
+    });
+    body.append(row);
+  }
+  table.append(body);
+  byId("quality-assurance-results").replaceChildren(table);
+  byId("export-quality-report").disabled = false;
+}
+
+function updateQualityReportSummary(report) {
+  const times = report.tests.map((test) => test.durationMs);
+  report.summary = {
+    total: report.tests.length,
+    passed: report.tests.filter((test) => test.status === "passed").length,
+    failed: report.tests.filter((test) => test.status === "failed").length,
+    warnings: report.tests.reduce((count, test) => count + (test.warning ? 1 : 0), 0),
+    averageProcessingMs: times.length ? times.reduce((total, time) => total + time, 0) / times.length : 0,
+    maxProcessingMs: Math.max(0, ...times),
+    unhandledExceptions: report.tests.filter((test) => test.category === "exception" && test.status === "failed").length,
+    dataCorruption: report.tests.filter((test) => test.category === "corruption" && test.status === "failed").length,
+    integrityErrors: report.tests.filter((test) => test.category === "integrity" && test.status === "failed").length,
+    aggregationErrors: report.tests.filter((test) => test.category === "aggregation" && test.status === "failed").length,
+  };
+}
+
+function setQualitySuiteInputs(suite) {
+  byId("qa-suite-select").value = suite;
+  navigateTo("quality-assurance");
+}
+
+async function runQualityAssurance(suite, includeStress = false) {
+  if (!developerModeEnabled) {
+    showError("品質保証機能は開発者モードでのみ利用できます。URLに ?developer=1 を指定してください。");
+    return;
+  }
+  if (qualityRunActive) return;
+  const selectedMatchCount = Number(byId("qa-match-count").value);
+  const selectedEventCount = Number(byId("qa-event-count").value);
+  const selectedStressEvents = Number(byId("qa-stress-event-count").value);
+  const stressEvents = includeStress
+    ? selectedStressEvents || (suite === "stress" ? 50_000 : 0)
+    : suite === "stress" ? selectedStressEvents || 50_000 : 0;
+  if ((selectedMatchCount >= 1000 || stressEvents >= 500_000)
+    && !confirm("大規模な試験は時間と一時ストレージを多く使用します。生成データは別の一時DBに保存し、終了時に削除します。続行しますか？")) return;
+
+  qualityRunActive = true;
+  byId("run-quality-tests").disabled = true;
+  byId("run-all-quality-tests").disabled = true;
+  byId("clear-quality-report").disabled = true;
+  byId("qa-progress").hidden = false;
+  byId("qa-progress").value = 0;
+  const originalMatch = currentMatch;
+  const report = {
+    reportVersion: 1,
+    startedAt: new Date().toISOString(),
+    finishedAt: "",
+    mode: "developer",
+    isolatedDatabase: true,
+    productionDataModified: false,
+    config: { suite, matchCount: selectedMatchCount, eventCount: selectedEventCount, stressEventCount: stressEvents },
+    tests: [],
+    summary: {},
+  };
+  lastQualityReport = report;
+  let databaseHandle;
+  let totalTests = ({
+    durability: 7,
+    load: 13,
+    video: 7,
+    integrity: 2,
+    analytics: 13,
+    stress: 37,
+    regression: 38,
+  })[suite] || 1;
+  if (stressEvents && suite !== "stress") totalTests += 3;
+  let completedTests = 0;
+  const addTest = async (name, action, category = "general") => {
+    qualityProgress(`実行中: ${name}`, completedTests, totalTests);
+    const started = qualityNow();
+    try {
+      const details = await action();
+      report.tests.push({
+        name,
+        category,
+        status: "passed",
+        durationMs: qualityNow() - started,
+        details: typeof details === "string" ? details : details?.details || "",
+        ...(details?.warning ? { warning: details.warning } : {}),
+      });
+    } catch (error) {
+      report.tests.push({
+        name,
+        category: error.qaCategory || category,
+        status: "failed",
+        durationMs: qualityNow() - started,
+        error: error?.message || String(error),
+      });
+    }
+    completedTests += 1;
+    updateQualityReportSummary(report);
+    renderQualityReport(report);
+    await qualityYield();
+  };
+
+  try {
+    const handle = await openQualityDatabase();
+    databaseHandle = handle.database;
+    report.temporaryDatabase = handle.databaseName;
+    qualityProgress("隔離した試験用データベースを準備中…", completedTests, totalTests);
+
+    const runMatchVolume = async () => {
+      let matches = [];
+      await addTest("大量試合作成", async () => {
+        const started = qualityNow();
+        for (let index = 0; index < selectedMatchCount; index += 1) {
+          const match = createQualityMatch({ index, eventCount: 221, syncPointCount: 1 });
+          if (!isQualityMatchValid(match)) throw new Error(`生成した試合 ${index + 1} 件目の検証に失敗しました。`);
+          matches.push(match);
+          if ((index + 1) % 25 === 0) {
+            qualityProgress(`試合を生成中: ${index + 1}/${selectedMatchCount}`, completedTests, totalTests);
+            await qualityYield();
+          }
+        }
+        return `${matches.length}試合を作成・検証 / ${(qualityNow() - started).toFixed(1)} ms / 各5セット / 14選手 / 統計・ローテーション・動画同期情報`;
+      }, "corruption");
+      if (matches.length !== selectedMatchCount) return;
+      await addTest("大量試合の隔離保存", async () => {
+        const records = matches.map((match) => ({
+          id: match.id,
+          kind: "matches",
+          teamId: match.teams[0].id,
+          seasonId: `season-${Number(match.matchInfo.matchDate.slice(0, 4))}`,
+          match,
+        }));
+        const started = qualityNow();
+        const written = await writeQualityRecords(databaseHandle, records, 25);
+        if (written !== selectedMatchCount) throw new Error(`保存件数が一致しません: ${written}/${selectedMatchCount}`);
+        return `保存 ${written} 件 / ${ (qualityNow() - started).toFixed(1)} ms`;
+      }, "corruption");
+      await addTest("大量試合の読込", async () => {
+        const started = qualityNow();
+        const loaded = await readQualityRecords(databaseHandle, "matches");
+        if (loaded.length !== selectedMatchCount) throw new Error(`読込件数が一致しません: ${loaded.length}/${selectedMatchCount}`);
+        for (let index = 0; index < loaded.length; index += 1) {
+          if (!isQualityMatchValid(loaded[index].match)) throw new Error(`読込データ ${index + 1} 件目が破損しています。`);
+          if ((index + 1) % 100 === 0) await qualityYield();
+        }
+        return `読込・全件再検証 ${loaded.length} 件 / ${(qualityNow() - started).toFixed(1)} ms`;
+      }, "corruption");
+      await addTest("大量試合の検索", async () => {
+        const selected = matches.at(-1);
+        const started = qualityNow();
+        const found = await searchQualityRecords(databaseHandle, "teamId", selected.teams[0].id);
+        if (found.length !== 1 || found[0].match.id !== selected.id) throw new Error("チームID検索の結果が一致しません。");
+        return `検索1件 / ${(qualityNow() - started).toFixed(1)} ms`;
+      });
+      matches = [];
+    };
+
+    const runEventLoadCases = async () => {
+      for (const targetCount of [100, 500, 1000, 2000]) {
+        let fixture;
+        await addTest(`${targetCount}イベント: 生成・表示・分析`, async () => {
+          fixture = createQualityEventMatch(targetCount);
+          const events = fixture.sets.flatMap((set) => set.events);
+          if (events.length !== targetCount) throw new Error(`イベント件数が一致しません: ${events.length}/${targetCount}`);
+          if (!isQualityMatchValid(fixture)) throw new Error("生成したイベント試合データが不正です。");
+          const displayStart = qualityNow();
+          const fragment = document.createDocumentFragment();
+          for (const event of events) fragment.append(makeEventRow(new Date(event.time).toLocaleTimeString("ja-JP"), getEventDescription(fixture, event)));
+          const displayMs = qualityNow() - displayStart;
+          const previous = currentMatch;
+          currentMatch = fixture;
+          const analysisStart = qualityNow();
+          for (const team of fixture.teams) getPerformanceStats(team);
+          getRotationAnalysis();
+          const analysisMs = qualityNow() - analysisStart;
+          currentMatch = previous;
+          return `表示行 ${events.length}: ${displayMs.toFixed(1)} ms / 分析: ${analysisMs.toFixed(1)} ms`;
+        }, "aggregation");
+        if (!fixture) continue;
+        await addTest(`${targetCount}イベント: 保存・読込`, async () => {
+          const record = { id: fixture.id, kind: "event-fixture", teamId: fixture.teams[0].id, match: fixture };
+          const writeStart = qualityNow();
+          await writeQualityRecords(databaseHandle, [record]);
+          const writeMs = qualityNow() - writeStart;
+          const readStart = qualityNow();
+          const loaded = await readQualityRecords(databaseHandle, "event-fixture");
+          const readMs = qualityNow() - readStart;
+          if (!loaded.some((item) => item.id === fixture.id && isQualityMatchValid(item.match))) throw new Error("保存後のイベントデータを再読込できません。");
+          const matchEvents = loaded.find((item) => item.id === fixture.id).match.sets.flatMap((set) => set.events);
+          if (matchEvents.length !== targetCount) throw new Error("読込イベント件数が一致しません。");
+          return `保存: ${writeMs.toFixed(1)} ms / 読込: ${readMs.toFixed(1)} ms`;
+        }, "corruption");
+        await addTest(`${targetCount}イベント: 検索`, async () => {
+          const found = await searchQualityRecords(databaseHandle, "teamId", fixture.teams[0].id);
+          if (!found.some((item) => item.id === fixture.id)) throw new Error("イベント試合の検索に失敗しました。");
+          return `検索一致 ${found.length} 件`;
+        });
+      }
+    };
+
+    const runLongDeuce = async () => {
+      const match = createQualityMatch({ index: 8800, fullMatch: true, longDeuce: true, eventCount: 300, syncPointCount: 10 });
+      currentMatch = match;
+      if (!isQualityMatchValid(match)) throw new Error("デュースを含む試合データが不正です。");
+      const scores = match.sets.map((set) => [getScore(set, match.teams[0].id), getScore(set, match.teams[1].id)]);
+      const expected = [[50, 48], [48, 50], [52, 50], [20, 25], [15, 13]];
+      if (JSON.stringify(scores) !== JSON.stringify(expected)) throw new Error("デュース得点の集計が一致しません。");
+      if (match.sets.some((set) => !getSetResult(match, set))) throw new Error("デュースセットの終了判定に失敗しました。");
+      if (!isMatchComplete(match) || getSetWins(match).find((item) => item.teamId === match.teams[0].id)?.wins !== 3) {
+        throw new Error("試合終了または勝敗判定が一致しません。");
+      }
+      for (const set of match.sets) {
+        getServingState(match, set);
+        const rotations = getRotationAnalysis();
+        if (rotations.size !== 2) throw new Error("ローテーション集計に失敗しました。");
+      }
+      for (const team of match.teams) getPerformanceStats(team);
+      return "50-48 / 48-50 / 52-50 / 20-25 / 15-13、セット終了・3-2勝敗・サーブ順・統計を確認";
+    };
+
+    const runVideoSyncCases = async () => {
+      const fixture = createQualityEventMatch(1000);
+      const original = currentMatch;
+      currentMatch = fixture;
+      for (const syncCount of [1, 3, 10]) {
+        await addTest(`動画同期 ${syncCount}ポイント`, async () => {
+          const events = getAllVideoEvents();
+          fixture.video.syncPoints = Array.from({ length: syncCount }, (_, index) => {
+            const eventIndex = syncCount === 1 ? 0 : Math.floor(index * (events.length - 1) / (syncCount - 1));
+            const event = events[eventIndex].event;
+            const elapsed = (Date.parse(event.time) - Date.parse(fixture.createdAt)) / 1000;
+            return { eventId: event.id, videoTime: elapsed + 8.5 };
+          });
+          if (!isQualityMatchValid(fixture)) throw new Error("動画同期ポイントの参照検証に失敗しました。");
+          const eventById = new Map(events.map((item) => [item.event.id, item.event]));
+          let maxError = 0;
+          for (const { event } of events) {
+            const actual = getVideoEventPosition(event.id, eventById);
+            const expected = (Date.parse(event.time) - Date.parse(fixture.createdAt)) / 1000 + 8.5;
+            if (!Number.isFinite(actual)) throw new Error(`動画時刻を計算できません: ${event.id}`);
+            maxError = Math.max(maxError, Math.abs(actual - expected));
+          }
+          if (maxError > 1) throw new Error(`動画時刻誤差が±1秒を超えました: ${maxError.toFixed(3)}秒`);
+          renderVideoPanel();
+          byId("video-filter-team").value = fixture.teams[0].id;
+          const playerId = fixture.teams[0].players[0].id;
+          byId("video-filter-player").value = playerId;
+          const selectedClips = getVideoClipItems();
+          if (!selectedClips.some(({ event }) => event.playerId === playerId)) throw new Error("選手別動画抽出に失敗しました。");
+          return `対象イベント ${events.length} 件 / 最大誤差 ${maxError.toFixed(3)} 秒 / 選手別抽出 ${selectedClips.length} 件`;
+        }, "aggregation");
+      }
+      currentMatch = original;
+    };
+
+    const runVideoLoadCases = async () => {
+      const previous = currentMatch;
+      for (const eventCount of [100, 500, 1000]) {
+        await addTest(`動画連携負荷 ${eventCount}イベント`, async () => {
+          const fixture = createQualityEventMatch(eventCount);
+          const events = getAllVideoEventsFor(fixture);
+          fixture.video.syncPoints = events.filter((_, index) => index % Math.max(1, Math.floor(eventCount / 10)) === 0)
+            .slice(0, 10).map(({ event }) => ({
+              eventId: event.id,
+              videoTime: (Date.parse(event.time) - Date.parse(fixture.createdAt)) / 1000 + 8.5,
+            }));
+          currentMatch = fixture;
+          renderVideoPanel();
+          byId("video-filter-team").value = fixture.teams[0].id;
+          const indexed = new Map(events.map((item) => [item.event.id, item.event]));
+          const jumpStart = qualityNow();
+          for (const { event } of events) {
+            if (!Number.isFinite(getVideoEventPosition(event.id, indexed))) throw new Error("動画ジャンプ時刻を算出できません。");
+          }
+          const jumpMs = qualityNow() - jumpStart;
+          const extractStart = qualityNow();
+          const clips = getVideoClipItems();
+          const extractMs = qualityNow() - extractStart;
+          const sequentialStart = qualityNow();
+          let resolved = 0;
+          for (const { event } of clips) {
+            if (Number.isFinite(getVideoEventPosition(event.id, indexed))) resolved += 1;
+          }
+          const sequentialResolveMs = qualityNow() - sequentialStart;
+          if (!clips.length || resolved !== clips.length) throw new Error("動画イベント抽出・連続シーク解決に失敗しました。");
+          return `ジャンプ ${jumpMs.toFixed(1)} ms / 抽出 ${extractMs.toFixed(1)} ms / 連続シーク解決 ${sequentialResolveMs.toFixed(1)} ms (${resolved}件)`;
+        }, "aggregation");
+      }
+      currentMatch = previous;
+    };
+
+    const runAnalytics = async () => {
+      const fixture = createQualityMatch({ index: 9900, eventCount: 260, syncPointCount: 10 });
+      currentMatch = fixture;
+      await addTest("MVP・勝因分析", () => {
+        renderMatchAnalysis(null);
+        if (!byId("match-mvp-analysis").textContent.trim() || !byId("match-cause-analysis").textContent.trim()) {
+          throw new Error("MVPまたは勝因分析の出力が空です。");
+        }
+        return "MVP候補・得点源別勝因・比較出力を確認";
+      }, "aggregation");
+      await addTest("チームDNA・ローテーション分析", () => {
+        renderTeamDossier(fixture.teams[0], [fixture]);
+        const rotations = getRotationAnalysis();
+        if (rotations.size !== 2 || !byId("team-dossier").textContent.includes("チームDNA分析")) {
+          throw new Error("チームDNAまたはローテーション分析に失敗しました。");
+        }
+        return "チームDNA・失点ローテーションを確認";
+      }, "aggregation");
+      await addTest("シーズン分析", () => {
+        renderSeasonStats();
+        if (!byId("season-summary").textContent.trim()) throw new Error("シーズン分析の出力が空です。");
+        return "選手別シーズン集計を確認";
+      }, "aggregation");
+      await addTest("相手チーム分析", () => {
+        const participant = { code: fixture.teams[0].code, name: fixture.teams[0].name };
+        renderOpponentScouting({ participants: [participant] });
+        if (!byId("opponent-scouting-results").textContent.includes("最近")) throw new Error("相手チーム分析の出力がありません。");
+        return "最近の試合・対戦相手指標を確認";
+      }, "aggregation");
+      await addTest("選手分析", () => {
+        for (const team of fixture.teams) {
+          const stats = getPerformanceStats(team);
+          if (stats.players.size !== 7) throw new Error("選手別集計の人数が一致しません。");
+          for (const playerStats of stats.players.values()) {
+            if (Object.values(playerStats).some((category) => Object.values(category).some((value) => !Number.isFinite(value)))) {
+              throw new Error("選手別集計に数値異常があります。");
+            }
+          }
+        }
+        return "全14選手の攻撃・守備・サーブ集計を確認";
+      }, "aggregation");
+      await addTest("リベロ分析", () => {
+        renderLiberoAnalysis();
+        return "リベロ分析パネルを例外なく描画";
+      }, "aggregation");
+      await addTest("サーブ分析", () => {
+        renderServeCourseAnalysis();
+        for (const team of fixture.teams) getPerformanceStats(team);
+        return "サーブ効果・得点集計を確認";
+      }, "aggregation");
+      await addTest("レシーブ分析", () => {
+        renderReceptionCourseAnalysis();
+        for (const team of fixture.teams) getPerformanceStats(team);
+        return "レセプション指標・コースパネルを確認";
+      }, "aggregation");
+      await addTest("交代効果分析", () => {
+        renderBenchworkAnalysis();
+        return "交代・タイムアウト後の指標を描画";
+      }, "aggregation");
+      await addTest("試合・セット・得点推移分析", () => {
+        renderMatchAnalysis(null);
+        if (!byId("match-set-comparison").textContent.trim()
+          || !byId("match-loss-analysis").textContent.trim()
+          || !byId("score-progression-chart").textContent.trim()) throw new Error("試合・セット・得点推移分析の出力が空です。");
+        return "試合比較・失点要因・得点チャートを確認";
+      }, "aggregation");
+      await addTest("年度比較・マッチアップ分析", () => {
+        renderMatchupComparison();
+        if (!byId("matchup-comparison").textContent.trim()) throw new Error("マッチアップ分析の出力が空です。");
+        return "チーム相対指標を確認";
+      }, "aggregation");
+      await addTest("プレー・イベント履歴分析", () => {
+        const descriptions = fixture.sets.flatMap((set) => set.events).map((event) => getEventDescription(fixture, event));
+        if (!descriptions.length || descriptions.some((description) => typeof description !== "string")) {
+          throw new Error("イベント記述の集計に失敗しました。");
+        }
+        return `${descriptions.length}件のイベント記述を生成`;
+      }, "aggregation");
+    };
+
+    const runIntegrityAudit = async () => {
+      const matches = new Map(store.matches.map((match) => [match.id, match]));
+      if (originalMatch) matches.set(originalMatch.id, originalMatch);
+      let issueCount = 0;
+      let checkedSets = 0;
+      let checkedEvents = 0;
+      for (const [index, match] of [...matches.values()].entries()) {
+        if (!isQualityMatchValid(match)) throw Object.assign(new Error(`試合 ${match.id} のデータ検証に失敗しました。`), { qaCategory: "integrity" });
+        const eventIds = new Set();
+        for (const set of match.sets) {
+          checkedSets += 1;
+          const ids = new Set(set.events.map((event) => event.id));
+          for (const event of set.events) {
+            checkedEvents += 1;
+            if (eventIds.has(event.id)) issueCount += 1;
+            eventIds.add(event.id);
+            for (const reference of [event.correctionOf, event.rallyEventId, event.scoreEventId]) {
+              if (reference && !ids.has(reference)) issueCount += 1;
+            }
+          }
+          issueCount += getIntegrityIssues(match, set).length;
+        }
+        if (issueCount) throw Object.assign(new Error(`整合性監査で ${issueCount} 件の問題を検出しました。試合: ${match.id}`), { qaCategory: "integrity" });
+        if ((index + 1) % 10 === 0) await qualityYield();
+      }
+      const generated = createQualityMatch({ index: 9910, eventCount: 240 });
+      if (!isQualityMatchValid(generated)) throw Object.assign(new Error("生成した試験試合の整合性がありません。"), { qaCategory: "integrity" });
+      return `試合 ${matches.size + 1} 件 / セット ${checkedSets + generated.sets.length} / イベント ${checkedEvents + generated.sets.reduce((total, set) => total + set.events.length, 0)} / 問題 ${issueCount}`;
+    };
+
+    const runStress = async () => {
+      const targetEvents = stressEvents || 50_000;
+      const expectedPlayers = 50_000;
+      let batch = [];
+      let recordsWritten = 0;
+      let playersWritten = 0;
+      let teamsWritten = 0;
+      let seasonsWritten = 0;
+      let eventsWritten = 0;
+      const writeStart = qualityNow();
+      for (const record of createQualityStressRecords({ eventCount: targetEvents })) {
+        batch.push(record);
+        if (record.kind === "players") playersWritten += record.entities.length;
+        if (record.kind === "events") eventsWritten += record.entities.length;
+        if (record.kind === "teams") teamsWritten += 1;
+        if (record.kind === "seasons") seasonsWritten += 1;
+        if (batch.length >= 100) {
+          recordsWritten += await writeQualityRecords(databaseHandle, batch, 100);
+          batch = [];
+          if (recordsWritten % 500 === 0) {
+            qualityProgress(`ストレスデータを保存中: ${eventsWritten}/${targetEvents}イベント`, completedTests, totalTests);
+            await qualityYield();
+          }
+        }
+      }
+      if (batch.length) recordsWritten += await writeQualityRecords(databaseHandle, batch, 100);
+      if (playersWritten !== expectedPlayers || teamsWritten !== 500 || seasonsWritten !== 100 || eventsWritten !== targetEvents) {
+        throw Object.assign(new Error(`生成数が一致しません（${playersWritten}選手 / ${teamsWritten}チーム / ${seasonsWritten}シーズン / ${eventsWritten}イベント）。`), { qaCategory: "corruption" });
+      }
+      const saveMs = qualityNow() - writeStart;
+      await addTest("最大ストレス試験: 保存", () => `${recordsWritten}レコード / ${playersWritten}選手 / ${teamsWritten}チーム / ${seasonsWritten}シーズン / ${eventsWritten}イベント / ${saveMs.toFixed(1)} ms`, "corruption");
+      const readStart = qualityNow();
+      const [players, eventBatches, teams, seasons] = await Promise.all([
+        readQualityRecords(databaseHandle, "players"),
+        readQualityRecords(databaseHandle, "events"),
+        readQualityRecords(databaseHandle, "teams"),
+        readQualityRecords(databaseHandle, "seasons"),
+      ]);
+      const loadedPlayerCount = players.reduce((total, record) => total + record.entities.length, 0);
+      const loadedEventCount = eventBatches.reduce((total, record) => total + record.entities.length, 0);
+      const readMs = qualityNow() - readStart;
+      if (loadedPlayerCount !== expectedPlayers || loadedEventCount !== targetEvents || teams.length !== 500 || seasons.length !== 100) {
+        throw Object.assign(new Error("ストレスデータの読込件数が一致しません。"), { qaCategory: "corruption" });
+      }
+      await addTest("最大ストレス試験: 読込", () => `${loadedPlayerCount}選手・${loadedEventCount}イベントを読込 / ${readMs.toFixed(1)} ms`, "corruption");
+      const searchStart = qualityNow();
+      const found = await searchQualityRecords(databaseHandle, "teamId", "team-499");
+      const queryEvents = found.filter((record) => record.kind === "events")
+        .reduce((total, record) => total + record.entities.length, 0);
+      const searchMs = qualityNow() - searchStart;
+      if (!found.some((record) => record.kind === "teams") || !queryEvents) {
+        throw Object.assign(new Error("ストレスデータのチーム検索に失敗しました。"), { qaCategory: "integrity" });
+      }
+      await addTest("最大ストレス試験: 検索・集計", () => `team-499 検索 ${found.length}レコード / ${queryEvents}イベント / ${searchMs.toFixed(1)} ms`, "aggregation");
+    };
+
+    const runMemoryTrial = async () => {
+      const fixture = createQualityMatch({ index: 9920, eventCount: 240 });
+      const initialHeap = performance.memory?.usedJSHeapSize;
+      const start = qualityNow();
+      for (let index = 0; index < 1_000; index += 1) {
+        const switched = structuredClone(fixture);
+        if (switched.id !== fixture.id || switched.sets.length !== 5) throw new Error("試合切替用コピーの内容が一致しません。");
+        if ((index + 1) % 100 === 0) {
+          qualityProgress(`試合切替リーク試験: ${index + 1}/1,000`, completedTests, totalTests);
+          await qualityYield();
+        }
+      }
+      const duration = qualityNow() - start;
+      const finalHeap = performance.memory?.usedJSHeapSize;
+      const heapDelta = Number.isFinite(initialHeap) && Number.isFinite(finalHeap) ? finalHeap - initialHeap : null;
+      if (heapDelta !== null && heapDelta > 64 * 1024 * 1024) throw new Error(`ヒープ増加量が64MiBを超えました: ${(heapDelta / 1024 / 1024).toFixed(1)} MiB`);
+      return {
+        details: `試合の独立コピーを1,000回生成・解放 / ${duration.toFixed(1)} ms${heapDelta === null ? "" : ` / ヒープ差 ${(heapDelta / 1024 / 1024).toFixed(1)} MiB`}`,
+        ...(!Number.isFinite(initialHeap) || !Number.isFinite(finalHeap)
+          ? { warning: "このブラウザーはJSヒープ統計を公開していません。メモリ増加量は計測不可です。" }
+          : {}),
+      };
+    };
+
+    const plans = {
+      durability: [runMatchVolume, runLongDeuce, runMemoryTrial],
+      load: [runEventLoadCases],
+      video: [runVideoSyncCases, runVideoLoadCases],
+      integrity: [runIntegrityAudit],
+      analytics: [runAnalytics],
+      stress: [runMatchVolume, runEventLoadCases, runVideoSyncCases, runAnalytics, runIntegrityAudit, runStress, runMemoryTrial],
+      regression: [runMatchVolume, runEventLoadCases, runLongDeuce, runVideoSyncCases, runVideoLoadCases, runAnalytics, runIntegrityAudit, runMemoryTrial],
+    };
+    if (stressEvents && suite !== "stress") plans[suite]?.push(runStress);
+    if (!plans[suite]) throw new Error(`不明な品質保証試験です: ${suite}`);
+    for (const testGroup of plans[suite]) {
+      if (testGroup === runMatchVolume) await runMatchVolume();
+      else if (testGroup === runEventLoadCases) await runEventLoadCases();
+      else if (testGroup === runLongDeuce) await addTest("長時間試合・フルデュース", runLongDeuce, "aggregation");
+      else if (testGroup === runVideoSyncCases) await runVideoSyncCases();
+      else if (testGroup === runVideoLoadCases) await runVideoLoadCases();
+      else if (testGroup === runAnalytics) await runAnalytics();
+      else if (testGroup === runIntegrityAudit) await addTest("全試合データ整合性監査", runIntegrityAudit, "integrity");
+      else if (testGroup === runStress) await runStress();
+      else if (testGroup === runMemoryTrial) await addTest("メモリリーク・1,000回切替", runMemoryTrial, "exception");
+    }
+    if (!report.tests.length) {
+      await addTest("品質保証起動確認", () => "隔離DBを作成しました。", "general");
+    }
+  } catch (error) {
+    report.tests.push({
+      name: "品質保証ランナー",
+      category: "exception",
+      status: "failed",
+      durationMs: 0,
+      error: error?.message || String(error),
+    });
+  } finally {
+    currentMatch = originalMatch;
+    try {
+      if (databaseHandle) {
+        const databaseName = report.temporaryDatabase;
+        databaseHandle.close();
+        await deleteQualityDatabase(databaseName);
+        report.tests.push({
+          name: "試験データ自動削除",
+          category: "cleanup",
+          status: "passed",
+          durationMs: 0,
+          details: "隔離した一時IndexedDBを削除しました。",
+        });
+      }
+    } catch (error) {
+      report.tests.push({
+        name: "試験データ自動削除",
+        category: "corruption",
+        status: "failed",
+        durationMs: 0,
+        error: `試験用データベースの削除に失敗しました: ${error.message}`,
+      });
+    }
+    report.finishedAt = new Date().toISOString();
+    updateQualityReportSummary(report);
+    renderQualityReport(report);
+    render();
+    if (developerModeEnabled) navigateTo("quality-assurance", false);
+    qualityProgress(`試験完了: 成功 ${report.summary.passed} / 失敗 ${report.summary.failed} / 警告 ${report.summary.warnings}`, totalTests, totalTests);
+    byId("run-quality-tests").disabled = false;
+    byId("run-all-quality-tests").disabled = false;
+    byId("clear-quality-report").disabled = false;
+    qualityRunActive = false;
+  }
+}
+
+function getAllVideoEventsFor(match) {
+  return match.sets.flatMap((set) => set.events.map((event, index) => ({
+    event, set, index, setNumber: set.number,
+  })));
+}
+
+function initializeDeveloperMode() {
+  developerModeEnabled = new URLSearchParams(location.search).get("developer") === "1";
+  byId("developer-quality-nav").hidden = !developerModeEnabled;
 }
 
 function renderTimeouts() {
@@ -6266,6 +6884,28 @@ function bindEvents() {
     byId("stop-filtered-video-events").disabled = true;
     byId("video-playback-status").textContent = "連続再生を停止しました。";
   });
+  byId("run-quality-tests").addEventListener("click", () => {
+    void runQualityAssurance(byId("qa-suite-select").value);
+  });
+  byId("run-all-quality-tests").addEventListener("click", () => {
+    void runQualityAssurance("regression", true);
+  });
+  byId("export-quality-report").addEventListener("click", () => {
+    if (!lastQualityReport) return;
+    downloadJsonData(lastQualityReport, `jva-quality-report-${lastQualityReport.startedAt.slice(0, 10)}.json`);
+  });
+  byId("clear-quality-report").addEventListener("click", () => {
+    if (qualityRunActive) return;
+    lastQualityReport = null;
+    byId("quality-assurance-summary").replaceChildren(
+      Object.assign(document.createElement("h2"), { textContent: "品質保証レポート" }),
+      Object.assign(document.createElement("p"), { textContent: "まだ試験を実行していません。" }),
+    );
+    byId("quality-assurance-results").replaceChildren();
+    byId("export-quality-report").disabled = true;
+    byId("qa-progress").hidden = true;
+    byId("qa-run-status").textContent = "試験データは実行後に自動削除されます。";
+  });
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
@@ -6453,6 +7093,11 @@ function bindEvents() {
     const destination = target.closest("[data-go]");
     if (destination) navigateTo(destination.dataset.go);
     const navigation = target.closest(".nav-item[data-page]");
+    const qaPreset = target.closest("[data-qa-preset]");
+    if (qaPreset) {
+      if (!developerModeEnabled) return;
+      byId("qa-suite-select").value = qaPreset.dataset.qaPreset;
+    }
     if (navigation) navigateTo(navigation.dataset.page);
     const removeMatch = target.closest("[data-remove-tournament-match]");
     if (removeMatch) removeMatchFromTournament(removeMatch.dataset.removeTournamentMatch);
@@ -6966,8 +7611,12 @@ function initializeDeviceSettings() {
 }
 
 function navigateTo(page, updateAddress = true) {
-  const validPages = new Set(["home", "manual", "setup", "members", "rotation", "staff", "confirm", "match", "tournaments", "courts", "audit", "season", "referee-training", "events", "video-sync", "scoresheet", "sets", "result", "verify", "output"]);
+  const validPages = new Set(["home", "manual", "setup", "members", "rotation", "staff", "confirm", "match", "tournaments", "courts", "audit", "season", "referee-training", "events", "video-sync", "scoresheet", "sets", "result", "verify", "output", "quality-assurance"]);
   let selected = validPages.has(page) ? page : "home";
+  if (selected === "quality-assurance" && !developerModeEnabled) {
+    showError("品質保証機能は開発者モードでのみ利用できます。URLに ?developer=1 を指定してください。");
+    selected = "home";
+  }
   if (selected === "match" && !matchHasStarted()) {
     showError("試合画面へ進む前にローテーション設定と開始確認を完了し、「試合を開始する」を押してください。");
     selected = "confirm";
@@ -6991,7 +7640,8 @@ function navigateTo(page, updateAddress = true) {
     panel.classList.toggle("active", active);
   });
   document.querySelectorAll(".nav-item[data-page]").forEach((button) => {
-    const active = button.dataset.page === selected;
+    const active = button.dataset.page === selected
+      && (!button.dataset.qaPreset || button.dataset.qaPreset === byId("qa-suite-select").value);
     button.classList.toggle("active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
@@ -6999,7 +7649,7 @@ function navigateTo(page, updateAddress = true) {
   if (isCompactViewport()) document.body.classList.remove("sidebar-open");
   byId("sidebar-toggle").setAttribute("aria-expanded", String(!isCompactViewport() && !document.body.classList.contains("sidebar-collapsed")));
   if (updateAddress && location.hash !== `#${selected}`) history.pushState(null, "", `#${selected}`);
-  const activeNavigation = document.querySelector(`.nav-item[data-page="${selected}"]`);
+  const activeNavigation = document.querySelector(`.nav-item[data-page="${selected}"].active`);
   if (activeNavigation) document.title = `${activeNavigation.textContent.trim()} | JVA Volleyball Official Electronic Score Sheet`;
   if (selected === "confirm" || selected === "scoresheet" || selected === "sets" || selected === "result" || selected === "verify" || selected === "output" || selected === "manual") {
     renderPageSummaries();
@@ -7007,10 +7657,12 @@ function navigateTo(page, updateAddress = true) {
   if (selected === "audit") renderAuditLog();
   if (selected === "courts") renderTournamentManagement();
   if (selected === "video-sync") renderVideoPanel();
+  if (selected === "quality-assurance") renderQualityReport();
 }
 
 async function initialize() {
   try {
+    initializeDeveloperMode();
     try {
       store = await readStore();
     } catch (error) {
