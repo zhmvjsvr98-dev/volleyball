@@ -226,6 +226,11 @@ export function getEventDescription(match, event) {
     };
     return `${teamName} チャレンジ: ${challenges[event.challengeType] || "その他"} / ${event.result === "success" ? "成功" : "失敗"}${event.note ? ` / ${event.note}` : ""}${scoreSuffix}`;
   }
+  if (event.type === "medical") {
+    const player = team?.players.find((item) => item.id === event.playerId);
+    const statuses = { play: "プレー続行", substituted: "交代", stopped: "一時中断", withdrawn: "出場中止" };
+    return `メディカル記録: ${teamName} ${player ? `#${player.number} ${player.name}` : "選手未特定"} / ${event.bodyArea} / ${statuses[event.status] || "対応未設定"}${event.note ? ` / ${event.note}` : ""}${scoreSuffix}`;
+  }
   if (event.type === "rally-play") {
     const player = team?.players.find((item) => item.id === event.playerId);
     const kinds = {

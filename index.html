@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#102e5b">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=47">
+  <link rel="stylesheet" href="./style.css?v=49">
   <script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -42,8 +42,12 @@
         <button class="nav-item" data-page="confirm">開始確認</button>
         <button class="nav-item" data-page="match">試合画面</button>
         <button class="nav-item" data-page="tournaments">大会モード</button>
+        <button class="nav-item" data-page="courts">マルチコート管理</button>
+        <button class="nav-item" data-page="audit">イベント監査ログ</button>
         <button class="nav-item" data-page="season">選手シーズン成績</button>
+        <button class="nav-item" data-page="referee-training">審判トレーニング</button>
         <button class="nav-item" data-page="events">ラリー・イベント記録</button>
+        <button class="nav-item" data-page="video-sync">動画同期</button>
         <button class="nav-item" data-page="scoresheet">スコアシート</button>
         <button class="nav-item" data-page="sets">セット履歴</button>
         <button class="nav-item" data-page="result">試合結果</button>
@@ -275,7 +279,7 @@
               <li><b>TTO：</b>大会管理・試合設定で発生点を2箇所まで設定すると到達時に自動記録します。設定外のTTOは手動記録できます。</li>
               <li><b>得点訂正：</b>イベント入力欄で訂正するチーム・点数・理由を選び、説明を入力します。チャレンジ等の訂正内容は得点履歴に残ります。</li>
               <li><b>交代・制裁：</b>選手交代、警告、ペナルティ、退場、失格はイベント画面の各欄から記録します。通常交代の上限・残数とリベロの交代履歴・出場状態を確認できます。</li>
-              <li><b>分析・時間：</b>サイドアウト率、ブレイク率、サーブ効果率、アタック決定率、レセプション成功率は記録に応じて更新されます。アタック時は攻撃ゾーンを選択し、サーブ/レシーブ時は中央にネットを表示したコート図の番号ボタンからコースを選びます。</li>
+              <li><b>分析・時間：</b>サイドアウト率、ブレイク率、サーブ効果率、アタック決定率、レセプション成功率は記録に応じて更新されます。試合中はセット差と得点差による簡易勝率予測を表示します。アタック時は攻撃ゾーンを選択し、サーブ/レシーブ時は中央にネットを表示したコート図の番号ボタンからコースを選びます。見ていないなどコースが不明な場合は「記録しない」を選びます。</li>
               <li><b>試合結果：</b>失点要因、セット別指標、選手出場時間、異常履歴、試合総評、サーブ/レシーブコース、リベロ成績、交代効果、タイムアウト後の得失点を確認できます。セット得点推移と全セットを通したイベント単位リプレイを備え、試合結果PDFにも各分析表を含めます。記録がないプレーは分析に含まれません。</li>
               <li><b>大会分析：</b>大会モードでチームの最近10試合と過去の対戦履歴を確認できます。保存済みの完了試合が対象です。</li>
             </ul>
@@ -321,7 +325,8 @@
               <li>別会場などアプリ外で行われた試合は<strong>「外部試合の結果入力」</strong>を押し、3セットまたは5セットマッチを選んで、実施したセットの両チームの得点を第1セットから順に入力します。同点や、勝敗確定後のセットは入力できません。</li>
               <li>試合途中のスコアも保存できます。必要セット数に達すると勝者が決まり、トーナメントでは次ラウンドへ進みます。リーグ戦では入力した結果が順位に加算されます。</li>
               <li>手入力した結果は「手入力結果を編集」から訂正・クリアできます。勝者の変更で後続の対戦相手が変わる場合、その対戦に紐づく手入力結果や試合リンクは無効になるため、表示された案内に従って再登録してください。</li>
-              <li>結果を印刷する場合は<strong>「大会一覧を印刷 / PDF」</strong>を押します。アプリ内で記録した試合と手入力した試合の結果が大会一覧に含まれます。</li>
+              <li>各試合の「大会・試合設定」で会場・コート・試合番号を登録すると、体育館モードにコートごとの未開始・進行中・終了状況が表示されます。審判成績には担当試合数と、担当した大会試合の得点訂正・チャレンジ件数が集計されます。</li>
+              <li>結果を印刷する場合は<strong>「大会報告書を印刷 / PDF」</strong>を押します。参加チーム、順位、アプリ内・外部試合の結果、個人ランキング、MVP、ベスト6、審判成績を含む報告書を生成します。印刷画面で「PDFに保存」を選んでください。MVP・ベスト6は記録された個人成績による評価順で、ポジション別の選考ではありません。</li>
             </ol>
             <p class="manual-tip"><b>使い分け：</b>アプリで記録する試合は「試合を作成（自動反映）」、アプリ外で行われた試合は「外部試合の結果入力」を選びます。同じ対戦を二重に登録しないよう、試合の記録方法を決めてから入力してください。</p>
           </section>
@@ -337,6 +342,33 @@
       <section class="app-page" data-page-panel="setup" hidden>
         <div class="page-heading"><div><span class="eyebrow">01. MATCH SETUP</span><h1>大会管理・試合設定</h1><p>大会と試合の基本情報を入力してください。</p></div><button class="button button-primary" data-go="members" type="button">次へ: 02 メンバー登録</button></div>
         <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">MATCH TEMPLATE</span><h2>試合テンプレート・ルール設定</h2></div></div>
+          <div class="rules-grid">
+            <label class="field" for="competition-template">初期テンプレート
+              <select id="competition-template">
+                <option value="">個別設定 / ローカル設定</option>
+                <option value="standard">標準</option>
+                <option value="high-school-boys">高校男子</option>
+                <option value="high-school-girls">高校女子</option>
+                <option value="middle-school-boys">中学男子</option>
+                <option value="middle-school-girls">中学女子</option>
+                <option value="beach">ビーチ</option>
+              </select>
+            </label>
+            <label class="field" for="rule-plugin-select">適用するルール設定
+              <select id="rule-plugin-select"></select>
+            </label>
+            <button id="export-rule-plugin" class="button button-secondary" type="button">選択中のローカル設定をJSON出力</button>
+            <button id="delete-rule-plugin" class="button button-secondary" type="button">選択中のローカル設定を削除</button>
+          </div>
+          <details class="analysis-panel">
+            <summary>ローカルルールJSONを登録</summary>
+            <p>JSONには許可された競技条件のみ保存します。スクリプトや任意コードは読み込み・実行しません。</p>
+            <label class="field" for="rule-plugin-json">ルール設定JSON<textarea id="rule-plugin-json" rows="7" maxlength="20000" spellcheck="false" placeholder='{"id":"local-example","name":"大会ローカルルール","settings":{"matchProfile":"six","category":"高校","bestOf":3,"regularTarget":25,"finalTarget":15}}'></textarea></label>
+            <button id="import-rule-plugin" class="button button-secondary" type="button">JSON設定を登録</button>
+          </details>
+        </section>
+        <section class="panel content-panel">
           <div class="section-heading"><div><span class="eyebrow">MATCH INFORMATION</span><h2>大会・試合基本情報</h2></div><span class="autosave-note">入力内容は自動保存されます</span></div>
           <div class="form-grid">
             <label class="field field-wide">大会名
@@ -350,6 +382,16 @@
             <label class="field">ラウンド・試合区分<input id="round" maxlength="40" placeholder="予選 / 準決勝"></label>
             <label class="field">設定時刻<input id="scheduled-time" type="time"></label>
           </div>
+        </section>
+        <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">VIDEO</span><h2>動画管理</h2></div></div>
+          <label class="field" for="match-video-file">動画ファイル選択
+            <input id="match-video-file" type="file" accept="video/*">
+          </label>
+          <p id="match-video-name" class="notice">登録動画: なし</p>
+          <p id="match-video-sync-count" class="stats-note">同期ポイント: 0件</p>
+          <p class="stats-note">動画本体は保存しません。ファイルを再選択するとこのブラウザーで一時再生できます。保存されるのはファイル名とイベント同期情報だけです。</p>
+          <button class="button button-secondary" data-go="video-sync" type="button">動画同期画面を開く</button>
         </section>
         <section class="panel content-panel">
           <div class="section-heading"><div><span class="eyebrow">COMPETITION PROFILE</span><h2>大会・競技条件</h2></div></div>
@@ -435,6 +477,11 @@
               <label class="field">リベロユニフォーム色<input id="team-libero-color-setup-b" type="color" aria-label="チームBのリベロユニフォーム色"></label>
             </div>
           </div>
+        </section>
+        <section class="panel content-panel">
+          <h2>戦術マッチアップ（過去の完了試合）</h2>
+          <p class="event-help">チームコードまたはチーム名が一致する保存済み完了試合から、サーブ・レシーブ・ブロックを比較します。記録がない指標は「—」で表示します。</p>
+          <div id="matchup-comparison"></div>
         </section>
       </section>
 
@@ -618,16 +665,19 @@
                     <option value="other">その他</option>
                   </select>
                 </div>
-                <label id="rally-attack-zone-field" class="field" hidden><span class="rally-step-label"><b>5</b> アタックゾーン</span><select id="rally-attack-zone"><option value="">未指定</option><option value="1">ゾーン1</option><option value="2">ゾーン2</option><option value="3">ゾーン3</option><option value="4">ゾーン4</option><option value="5">ゾーン5</option><option value="6">ゾーン6</option></select></label>
+                <label id="rally-attack-zone-field" class="field" hidden><span class="rally-step-label"><b>5</b> アタックゾーン</span><select id="rally-attack-zone"><option value="">未指定</option><option value="skip">記録しない（不明・未確認）</option><option value="1">ゾーン1</option><option value="2">ゾーン2</option><option value="3">ゾーン3</option><option value="4">ゾーン4</option><option value="5">ゾーン5</option><option value="6">ゾーン6</option></select></label>
                 <div id="rally-course-zone-field" class="field rally-course-field" hidden>
                   <span id="rally-course-zone-label" class="rally-step-label"><b>5</b> コース</span>
                   <input id="rally-course-zone" type="hidden" value="">
                   <div id="rally-course-court" class="rally-course-court" aria-label="コースを選択"></div>
+                  <button id="rally-course-clear" class="button button-secondary rally-course-clear" type="button" aria-pressed="true">コースを記録しない（不明・未確認）</button>
+                  <p class="event-help">試合を見ていないなどコースがわからない場合は、記録せずに進められます。</p>
                 </div>
                 <label class="field play-note-field"><span class="rally-step-label"><b>6</b> 内容・備考（任意）</span><input id="rally-note" maxlength="120" placeholder="例: ネットにかけた、二段トス"></label>
                 <button id="record-rally-play" class="button button-primary" type="button">このプレーを記録</button>
               </div>
             </section>
+
             <section class="event-tool"><h3>タイムアウト</h3><div id="timeout-actions" class="action-pair"></div></section>
             <section class="event-tool"><h3>チャレンジ</h3><p id="challenge-status" class="event-help"></p><div class="event-form">
               <label class="field">チャレンジしたチーム<select id="challenge-team"></select></label>
@@ -667,6 +717,17 @@
               <label class="field">内容<select id="sanction-type"><option value="warning">警告</option><option value="penalty">ペナルティ</option><option value="expulsion">退場</option><option value="disqualification">失格</option><option value="delay-warning">遅延警告</option><option value="delay-penalty">遅延ペナルティ</option></select></label>
               <button id="record-sanction" class="button button-secondary" type="button">処置を記録</button>
             </div></section>
+            <section class="event-tool"><h3>怪我・メディカル記録</h3>
+              <p class="event-help">症状の詳細は必要最小限にし、試合運営に必要な事実だけを記録してください。データはこの端末のブラウザー内に保存されます。</p>
+              <div class="event-form">
+                <label class="field">チーム<select id="medical-team"></select></label>
+                <label class="field">選手<select id="medical-player"></select></label>
+                <label class="field">部位<select id="medical-area"><option value="足首">足首</option><option value="膝">膝</option><option value="太もも">太もも</option><option value="ふくらはぎ">ふくらはぎ</option><option value="肩">肩</option><option value="指・手">指・手</option><option value="腰">腰</option><option value="その他">その他</option></select></label>
+                <label class="field">対応<select id="medical-status"><option value="play">プレー続行</option><option value="substituted">交代</option><option value="stopped">一時中断</option><option value="withdrawn">出場中止</option></select></label>
+                <label class="field">備考（任意）<input id="medical-note" maxlength="120" placeholder="事実のみを簡潔に記録"></label>
+                <button id="record-medical-event" class="button button-secondary" type="button">メディカル記録を追加</button>
+              </div>
+            </section>
           </div>
         </section>
         <section class="event-tool"><h3>得点訂正・チャレンジ判定</h3>
@@ -685,6 +746,37 @@
         </section>
       </section>
 
+      <section class="app-page" data-page-panel="video-sync" hidden>
+        <div class="page-heading"><div><span class="eyebrow">VIDEO SYNC</span><h1>動画同期</h1><p>イベントと動画の実際の場面を複数の同期ポイントで結び、編集済み動画や録画開始時刻のずれに対応します。</p></div></div>
+        <section class="panel content-panel">
+          <label class="field" for="video-sync-event">イベント選択<select id="video-sync-event"></select></label>
+          <video id="match-video-player" controls playsinline preload="metadata"></video>
+          <p id="video-playback-status" class="notice" role="status">動画ファイルを再選択してください。</p>
+          <div class="output-actions">
+            <button id="add-video-sync-point" class="button button-primary" type="button">同期ポイント登録</button>
+            <button id="previous-video-sync-point" class="button button-secondary" type="button">前の同期ポイント</button>
+            <button id="next-video-sync-point" class="button button-secondary" type="button">次の同期ポイント</button>
+          </div>
+          <p id="video-sync-count" class="stats-note">同期ポイント 0件</p>
+          <div id="video-sync-point-list"></div>
+        </section>
+        <section class="panel content-panel">
+          <div class="section-heading"><div><span class="eyebrow">VIDEO CLIPS</span><h2>選手別・ミス別・ローテーション別動画</h2></div></div>
+          <div class="season-filters">
+            <label class="field" for="video-filter-team">チーム<select id="video-filter-team"></select></label>
+            <label class="field" for="video-filter-player">選手<select id="video-filter-player"></select></label>
+            <label class="field" for="video-filter-kind">プレー / ミス<select id="video-filter-kind">
+              <option value="all">すべて</option><option value="attack">アタック</option><option value="backAttack">バックアタック</option><option value="block">ブロック</option><option value="serve">サーブ</option><option value="reception">レシーブ</option>
+              <option value="miss-serve">サーブミス</option><option value="miss-reception">レシーブミス</option><option value="miss-attack">アタックミス</option><option value="miss-block">ブロックミス</option>
+            </select></label>
+            <label class="field" for="video-filter-rotation">ローテーション<select id="video-filter-rotation"><option value="">すべて</option></select></label>
+          </div>
+          <div class="output-actions"><button id="play-filtered-video-events" class="button button-primary" type="button">抽出イベントを連続再生</button><button id="stop-filtered-video-events" class="button button-secondary" type="button" disabled>連続再生を停止</button></div>
+          <p id="video-filter-summary" class="stats-note"></p>
+          <ol id="video-event-clips" class="event-log"></ol>
+        </section>
+      </section>
+
       <section class="app-page" data-page-panel="scoresheet" hidden>
         <div class="page-heading"><div><span class="eyebrow">09. SCORE SHEET</span><h1>スコアシート</h1><p>セット得点、イベント、選手ごとのプレー状況を確認します。</p></div><button class="button button-primary" data-go="output" type="button">記録票を出力</button></div>
         <section class="panel content-panel"><div id="score-sheet-summary"></div></section>
@@ -696,7 +788,7 @@
       </section>
 
       <section class="app-page" data-page-panel="tournaments" hidden>
-        <div class="page-heading"><div><span class="eyebrow">TOURNAMENT MODE</span><h1>大会モード</h1><p>大会を作成し、試合状況、勝率・得セット率・得失点率、個人ランキング、相手チーム分析、過去対戦を確認します。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">TOURNAMENT MODE</span><h1>大会モード</h1><p>大会を作成し、体育館・コート別の試合進行、審判成績、順位・個人成績を確認できます。大会終了後は報告書を印刷 / PDF 保存できます。</p></div></div>
         <section class="panel content-panel">
           <h2>大会を作成</h2>
           <div class="tournament-create-row">
@@ -706,11 +798,15 @@
           </div>
           <fieldset class="tournament-team-picker"><legend>参加チーム（チームコードを登録済みのチーム履歴）</legend><div id="tournament-participant-options"></div></fieldset>
         </section>
+
         <section class="panel content-panel">
           <div class="tournament-toolbar">
             <label class="field" for="tournament-select">管理する大会<select id="tournament-select"></select></label>
-            <div class="output-actions"><button id="add-match-to-tournament" class="button button-secondary" type="button">現在の試合を登録</button><button id="print-tournament-report" class="button button-secondary" type="button">大会一覧を印刷 / PDF</button><button id="delete-tournament" class="button button-secondary" type="button">大会を削除</button></div>
+            <div class="output-actions"><button id="add-match-to-tournament" class="button button-secondary" type="button">現在の試合を登録</button><button id="print-tournament-report" class="button button-secondary" type="button">大会報告書を印刷 / PDF</button><button id="delete-tournament" class="button button-secondary" type="button">大会を削除</button></div>
           </div>
+          <p id="tournament-report-status" class="notice" aria-live="polite"></p>
+          <section id="gym-court-board" class="analysis-panel"></section>
+          <section id="referee-performance-summary" class="analysis-panel"></section>
           <section id="manual-league-fixture-controls" class="manual-fixture-controls" hidden>
             <h3>予選・リーグの対戦カードを追加</h3>
             <p>対戦するチームとラウンド名を指定してください。試合結果は入力またはアプリ記録から反映できます。</p>
@@ -724,6 +820,7 @@
           <div id="tournament-match-list"></div>
           <div id="tournament-fixture-list"></div>
           <div id="tournament-performance-summary"></div>
+          <section id="tournament-score-heatmap" class="analysis-panel"></section>
           <section id="opponent-scouting" class="analysis-panel">
             <h3>相手チーム分析（最近10試合）</h3>
             <label class="field" for="opponent-scouting-team">分析するチーム<select id="opponent-scouting-team"></select></label>
@@ -740,6 +837,17 @@
           <p id="tournament-status-message" class="notice is-warning" role="status" aria-live="polite" hidden></p>
           <p class="notice">予選・リーグの対戦カードは上の入力欄から手動で追加します。トーナメントの初回対戦も各枠の「対戦相手を設定」から指定してください。トーナメントは勝者が次ラウンドへ自動反映されます。アプリ外試合はセット結果を手入力でき、アプリ内で記録した試合は結果が自動反映されます。</p>
         </section>
+      </section>
+      <section class="app-page" data-page-panel="courts" hidden>
+        <div class="page-heading"><div><span class="eyebrow">MULTI-COURT CONTROL</span><h1>マルチコート管理</h1><p>大会を選ぶと、登録試合を会場・コートごとにまとめて一覧できます。</p></div></div>
+        <section class="panel content-panel">
+          <label class="field" for="court-board-tournament">管理する大会<select id="court-board-tournament"></select></label>
+          <section id="multi-court-board" class="analysis-panel"></section>
+        </section>
+      </section>
+      <section class="app-page" data-page-panel="audit" hidden>
+        <div class="page-heading"><div><span class="eyebrow">APPEND-ONLY HISTORY</span><h1>イベント監査ログ</h1><p>試合イベントや選手登録の追加・訂正・削除を、通常の試合イベントとは別に記録します。</p></div><button id="export-audit-log" class="button button-secondary" type="button">監査ログを書き出す</button></div>
+        <section class="panel content-panel"><div id="audit-log-table"></div></section>
       </section>
       <dialog id="tournament-fixture-dialog" class="tournament-result-dialog">
         <form id="tournament-fixture-form" method="dialog">
@@ -795,12 +903,28 @@
             <label class="field" for="season-end">終了日<input id="season-end" type="date"></label>
           </div>
           <div id="season-summary"></div>
+          <section id="year-comparison" class="analysis-panel"></section>
+          <section id="team-dossier" class="analysis-panel"></section>
+        </section>
+      </section>
+
+      <section class="app-page" data-page-panel="referee-training" hidden>
+        <div class="page-heading"><div><span class="eyebrow">REFEREE TRAINING</span><h1>審判トレーニング</h1><p>保存済み試合の実際の記録順から、判断練習問題を作成します。</p></div></div>
+        <section class="panel content-panel">
+          <p class="notice">問題は保存試合のタイムアウト前後のイベントを教材化します。選択肢の正解は実際の記録順であり、競技規則の正誤判定や公式審判基準を代替するものではありません。</p>
+          <div class="tournament-create-row">
+            <label class="field" for="training-match">教材にする保存済み試合<select id="training-match"></select></label>
+            <button id="generate-referee-question" class="button button-primary" type="button">問題を作成</button>
+          </div>
+          <section id="referee-training-question" class="analysis-panel" aria-live="polite">
+            <p class="empty-message">試合を選んで問題を作成してください。</p>
+          </section>
         </section>
       </section>
 
       <section class="app-page" data-page-panel="result" hidden>
         <div class="page-heading"><div><span class="eyebrow">11. MATCH RESULT</span><h1>試合結果</h1><p>最終結果、セット別比較、失点要因、出場時間と評価レポートを確認します。</p></div></div>
-        <section class="panel content-panel"><div id="match-result-summary"></div><button id="finish-match-check" class="button button-primary" type="button" hidden>試合終了前チェックを表示</button><section id="match-finish-checklist" class="match-finish-checklist" hidden></section><section id="match-analysis-report" class="match-analysis-report"><h2>試合分析・評価レポート</h2><div id="match-review" class="match-review"></div><label class="field score-chart-filter">得点チャートのセット<select id="score-chart-set"></select></label><div id="score-progression-chart"></div><div id="score-timeline-controls" class="score-timeline-controls" hidden></div><div id="match-event-replay" class="score-timeline-controls"></div><div id="match-run-analysis"></div><div id="match-set-comparison"></div><div id="match-cause-analysis"></div><div id="match-loss-analysis"></div><div id="match-anomaly-history"></div><div id="player-playing-time"></div><div id="match-benchwork-analysis"></div><div id="match-mvp-analysis"></div><div id="attack-zone-analysis"></div><div id="serve-course-analysis"></div><div id="reception-course-analysis"></div><div id="libero-analysis"></div></section></section>
+        <section class="panel content-panel"><div id="match-result-summary"></div><button id="finish-match-check" class="button button-primary" type="button" hidden>試合終了前チェックを表示</button><section id="match-finish-checklist" class="match-finish-checklist" hidden></section><section id="match-analysis-report" class="match-analysis-report"><h2>試合分析・評価レポート</h2><div id="match-data-quality" class="analysis-panel"></div><div id="match-review" class="match-review"></div><label class="field score-chart-filter">得点チャートのセット<select id="score-chart-set"></select></label><div id="score-progression-chart"></div><div id="score-timeline-controls" class="score-timeline-controls" hidden></div><div id="match-event-replay" class="score-timeline-controls"></div><div id="match-run-analysis"></div><div id="match-set-comparison"></div><div id="match-cause-analysis"></div><div id="match-loss-analysis"></div><div id="match-anomaly-history"></div><div id="player-playing-time"></div><div id="match-benchwork-analysis"></div><div id="match-mvp-analysis"></div><div id="attack-zone-analysis"></div><div id="serve-course-analysis"></div><div id="reception-course-analysis"></div><div id="libero-analysis"></div><section class="analysis-panel"><h2>動画クリップ分析</h2><p>試合設定で動画を選び、動画同期画面で同期ポイントを登録すると利用できます。</p><button class="button button-secondary" data-go="video-sync" type="button">動画同期・クリップ抽出を開く</button></section></section></section>
       </section>
 
       <section class="app-page" data-page-panel="verify" hidden>
@@ -816,7 +940,7 @@
             <select id="print-document-type">
               <option value="match">試合記録票</option><option value="result">試合結果</option>
               <option value="roster">メンバー表</option><option value="sets">セット結果</option>
-              <option value="player-stats">個人成績</option><option value="tournament-report">大会試合一覧</option><option value="score-log">得点・コートチェンジ記録</option>
+              <option value="player-stats">個人成績</option><option value="tournament-report">大会報告書</option><option value="score-log">得点・コートチェンジ記録</option>
               <option value="event-log">ラリー・イベント時系列記録</option><option value="manual">取扱いマニュアル</option>
             </select>
           </label>

@@ -4,13 +4,29 @@ const DATABASE_VERSION = 2;
 const DATABASE_STORE = "records";
 const METADATA_KEY = "metadata";
 const MATCH_KEY_PREFIX = "match:";
+const AUDIT_KEY_PREFIX = "audit:";
 export const MAX_MATCHES = 1_000;
 const MAX_TEAM_PROFILES = 100;
 const MAX_TOURNAMENTS = 100;
+const MAX_AUDIT_ENTRIES = 1_000_000;
+const MAX_RULE_PLUGINS = 100;
 const MAX_EVENTS_PER_SET = 2_000;
 const OFFICIAL_ROLES = ["firstReferee", "secondReferee", "scorer", "assistantScorer", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"];
 let databasePromise;
 let persistedMatches = new Map();
+let persistedAuditEntries = new Map();
+
+function validateVideo(video, sets) {
+  if (video === undefined) return true;
+  if (!isPlainObject(video) || video.version !== 1 || !isText(video.fileName, 255)
+    || !Array.isArray(video.syncPoints) || video.syncPoints.length > 10_000) return false;
+  const events = new Map(sets.flatMap((set) => set.events.map((event) => [event.id, event])));
+  return video.syncPoints.every((point) => isPlainObject(point)
+    && isText(point.eventId, 80) && events.has(point.eventId)
+    && typeof point.videoTime === "number" && Number.isFinite(point.videoTime)
+    && point.videoTime >= 0 && point.videoTime <= 604_800)
+    && new Set(video.syncPoints.map((point) => point.eventId)).size === video.syncPoints.length;
+}
 
 function openDatabase() {
   if (!("indexedDB" in globalThis)) {
@@ -50,7 +66,7 @@ function openDatabase() {
 }
 
 function emptyStore() {
-  return { version: 1, matches: [], teamProfiles: [], tournaments: [] };
+  return { version: 1, matches: [], teamProfiles: [], tournaments: [], auditLog: [], plugins: [] };
 }
 
 function upgradeStore(value) {
@@ -62,15 +78,22 @@ function upgradeStore(value) {
     matches: value.matches.map(upgradeMatch),
     teamProfiles: Array.isArray(value.teamProfiles) ? value.teamProfiles : [],
     tournaments: Array.isArray(value.tournaments) ? value.tournaments : [],
+    auditLog: Array.isArray(value.auditLog) ? value.auditLog : [],
+    plugins: Array.isArray(value.plugins) ? value.plugins : [],
   };
   if (!validateStore(upgraded)) {
     throw new Error("保存データの形式が正しくありません。データ書き出しファイルから復元してください。");
   }
+  upgraded.auditLog.sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
   return upgraded;
 }
 
 function rememberPersistedMatches(matches) {
   persistedMatches = new Map(matches.map((match) => [match.id, JSON.stringify(match)]));
+}
+
+function rememberPersistedAuditEntries(entries) {
+  persistedAuditEntries = new Map(entries.map((entry) => [entry.id, JSON.stringify(entry)]));
 }
 
 function storeFromRecords(records) {
@@ -85,7 +108,17 @@ function storeFromRecords(records) {
   if (matches.length !== matchesById.size || matches.some((match) => !match)) {
     throw new Error("保存データの試合一覧が一致しません。データ書き出しファイルから復元してください。");
   }
-  return upgradeStore({ version: metadata.version, matches, teamProfiles: metadata.teamProfiles, tournaments: metadata.tournaments });
+  const auditLog = records
+    .filter((record) => typeof record.key === "string" && record.key.startsWith(AUDIT_KEY_PREFIX))
+    .map((record) => record.value);
+  return upgradeStore({
+    version: metadata.version,
+    matches,
+    teamProfiles: metadata.teamProfiles,
+    tournaments: metadata.tournaments,
+    auditLog: auditLog.length ? auditLog : metadata.auditLog,
+    plugins: metadata.plugins,
+  });
 }
 
 function addStoreToTransaction(objectStore, store) {
@@ -96,9 +129,11 @@ function addStoreToTransaction(objectStore, store) {
       matchIds: store.matches.map((match) => match.id),
       teamProfiles: store.teamProfiles,
       tournaments: store.tournaments,
+      plugins: store.plugins,
     },
   });
   store.matches.forEach((match) => objectStore.put({ key: `${MATCH_KEY_PREFIX}${match.id}`, value: match }));
+  store.auditLog.forEach((entry) => objectStore.put({ key: `${AUDIT_KEY_PREFIX}${entry.id}`, value: entry }));
 }
 
 function storageError(error) {
@@ -284,6 +319,12 @@ function validateEvent(event, validTeamIds) {
       && ["success", "failed"].includes(event.result)
       && isText(event.note || "", 120);
   }
+  if (event.type === "medical") {
+    return isText(event.playerId, 80)
+      && ["足首", "膝", "太もも", "ふくらはぎ", "肩", "指・手", "腰", "その他"].includes(event.bodyArea)
+      && ["play", "substituted", "stopped", "withdrawn"].includes(event.status)
+      && isText(event.note || "", 120);
+  }
   if (event.type === "rally-play") {
     return ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "error", "other"].includes(event.playKind)
       && ["success", "point", "error", "touch", "effective", "excellent", "good", "other"].includes(event.outcome)
@@ -340,6 +381,8 @@ export function validateMatch(match) {
     || !isPlainObject(match.matchInfo) || !isPlainObject(match.rules)
     || !Array.isArray(match.teams) || match.teams.length !== 2
     || !Array.isArray(match.sets) || match.sets.length < 1 || match.sets.length > 5) return false;
+  if (match.auditLog !== undefined && (!Array.isArray(match.auditLog) || match.auditLog.length > MAX_AUDIT_ENTRIES
+    || !match.auditLog.every(validateAuditEntry))) return false;
 
   const info = match.matchInfo;
   if (!["tournamentName", "matchDate", "venue", "venueAddress", "court", "matchNumber", "round", "scheduledTime", "startedAt", "endedAt", "referee1", "referee2", "scorer"]
@@ -369,7 +412,8 @@ export function validateMatch(match) {
     || rules.courtChangeSets.some((setNumber) => !Number.isInteger(setNumber) || setNumber < 1 || setNumber > 4)
     || new Set(rules.courtChangeSets).size !== rules.courtChangeSets.length
     || !Number.isInteger(rules.warmupMinutes) || rules.warmupMinutes < 0 || rules.warmupMinutes > 60
-    || typeof rules.rotationEnabled !== "boolean") return false;
+    || typeof rules.rotationEnabled !== "boolean"
+    || rules.pluginId !== undefined && !isText(rules.pluginId, 40)) return false;
 
   // Storageや読み込みファイルの内容は信頼せず、保存するたびに構造から検証します。
   const teamIds = new Set();
@@ -416,6 +460,7 @@ export function validateMatch(match) {
       if (event.type === "service-order-violation"
         && (!allPlayerIds.has(event.actualServerPlayerId) || !allPlayerIds.has(event.expectedServerPlayerId))) return false;
       if (event.type === "serve-fault" && event.playerId && !allPlayerIds.has(event.playerId)) return false;
+      if (event.type === "medical" && !playerIdsByTeam.get(event.teamId).has(event.playerId)) return false;
       if (["play", "rally-play"].includes(event.type) && event.playerId && !playerIdsByTeam.get(event.teamId).has(event.playerId)) return false;
       if (event.type !== "score" || event.delta < 0) continue;
       const scoringPlayers = playerIdsByTeam.get(event.teamId);
@@ -441,7 +486,7 @@ export function validateMatch(match) {
       scores.set(event.teamId, nextScore);
     }
     return true;
-  });
+  }) && validateVideo(match.video, match.sets);
 }
 
 function upgradeMatch(match) {
@@ -485,6 +530,19 @@ function upgradeMatch(match) {
     endedAt: typeof set.endedAt === "string" ? set.endedAt : "",
     startingLineups: isPlainObject(set.startingLineups) ? set.startingLineups : Object.fromEntries((teams || []).map((team) => [team.id, team.rotationLineup])),
   })) : match.sets;
+  const videoPoints = [];
+  const eventIds = new Set(sets.flatMap((set) => set.events.map((event) => event.id)));
+  if (Array.isArray(match.video?.syncPoints)) {
+    const seen = new Set();
+    for (const point of match.video.syncPoints.slice(0, 10_000)) {
+      if (isPlainObject(point) && isText(point.eventId, 80) && eventIds.has(point.eventId)
+        && typeof point.videoTime === "number" && Number.isFinite(point.videoTime)
+        && point.videoTime >= 0 && point.videoTime <= 604_800 && !seen.has(point.eventId)) {
+        videoPoints.push({ eventId: point.eventId, videoTime: point.videoTime });
+        seen.add(point.eventId);
+      }
+    }
+  }
   return {
     ...match,
     matchInfo: {
@@ -523,9 +581,17 @@ function upgradeMatch(match) {
       rotationEnabled: typeof rules.rotationEnabled === "boolean" ? rules.rotationEnabled : true,
       warmupMinutes: Number.isInteger(rules.warmupMinutes) ? rules.warmupMinutes : 10,
       note: typeof rules.note === "string" ? rules.note.slice(0, 240) : "",
+      pluginId: typeof rules.pluginId === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(rules.pluginId)
+        ? rules.pluginId : "standard",
     },
     teams: normalizedTeams,
     sets,
+    auditLog: Array.isArray(match.auditLog) ? match.auditLog : [],
+    video: {
+      fileName: isText(match.video?.fileName, 255) && !/[\\/]/.test(match.video.fileName) ? match.video.fileName : "",
+      syncPoints: videoPoints,
+      version: 1,
+    },
   };
 }
 
@@ -535,12 +601,60 @@ function validateStore(value) {
     || !value.matches.every(validateMatch)
     || !Array.isArray(value.teamProfiles) || value.teamProfiles.length > MAX_TEAM_PROFILES
     || !value.teamProfiles.every((profile) => validateTeamProfile(profile, true))
-    || !Array.isArray(value.tournaments) || value.tournaments.length > MAX_TOURNAMENTS) return false;
+    || !Array.isArray(value.tournaments) || value.tournaments.length > MAX_TOURNAMENTS
+    || !Array.isArray(value.auditLog) || value.auditLog.length > MAX_AUDIT_ENTRIES
+    || !value.auditLog.every(validateAuditEntry)
+    || new Set(value.auditLog.map((entry) => entry.id)).size !== value.auditLog.length
+    || !Array.isArray(value.plugins) || value.plugins.length > MAX_RULE_PLUGINS
+    || !value.plugins.every(validateRulePlugin)
+    || new Set(value.plugins.map((plugin) => plugin.id)).size !== value.plugins.length) return false;
   const matchIds = new Set(value.matches.map((match) => match.id));
   const tournamentMatchIds = value.tournaments.flatMap((tournament) => tournament.matchIds);
   return value.tournaments.every((tournament) => validateTournament(tournament, matchIds))
     && new Set(value.tournaments.map((tournament) => tournament.id)).size === value.tournaments.length
     && new Set(tournamentMatchIds).size === tournamentMatchIds.length;
+}
+
+function validateAuditEntry(entry) {
+  return isPlainObject(entry)
+    && isText(entry.id, 80)
+    && isText(entry.time, 40)
+    && isText(entry.matchId, 80)
+    && isText(entry.matchName, 160)
+    && ["add", "edit", "delete"].includes(entry.action)
+    && isText(entry.entity, 40)
+    && isText(entry.details, 240)
+    && (entry.setNumber === undefined || Number.isInteger(entry.setNumber) && entry.setNumber >= 1 && entry.setNumber <= 5);
+}
+
+export function validateRulePlugin(plugin) {
+  if (!isPlainObject(plugin) || !isText(plugin.id, 40) || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(plugin.id)
+    || !isText(plugin.name, 60) || !plugin.name.trim() || !isPlainObject(plugin.settings)
+    || !Object.keys(plugin).every((key) => ["id", "name", "settings"].includes(key))) return false;
+  const settings = plugin.settings;
+  const profiles = ["six", "six-elementary", "nine", "beach", "soft"];
+  const categories = ["一般", "大学", "高校", "中学校", "小学生", "マスターズ", "その他"];
+  const divisions = ["男子", "女子", "混合", "その他"];
+  const numericLimits = {
+    winBy: [1, 10], timeoutLimit: [0, 10], substitutionLimit: [0, 30],
+    rosterLimit: [1, 42], warmupMinutes: [0, 60], courtChangeInterval: [0, 99],
+  };
+  return Object.keys(settings).every((key) => [
+    "matchProfile", "category", "division", "bestOf", "regularTarget", "finalTarget",
+    ...Object.keys(numericLimits), "rotationEnabled", "technicalTimeoutPoints",
+  ].includes(key))
+    && (settings.matchProfile === undefined || profiles.includes(settings.matchProfile))
+    && (settings.category === undefined || categories.includes(settings.category))
+    && (settings.division === undefined || divisions.includes(settings.division))
+    && (settings.bestOf === undefined || [3, 5].includes(settings.bestOf))
+    && ["regularTarget", "finalTarget"].every((key) => settings[key] === undefined
+      || Number.isInteger(settings[key]) && settings[key] >= 1 && settings[key] <= 99)
+    && Object.entries(numericLimits).every(([key, [min, max]]) => settings[key] === undefined
+      || Number.isInteger(settings[key]) && settings[key] >= min && settings[key] <= max)
+    && (settings.rotationEnabled === undefined || typeof settings.rotationEnabled === "boolean")
+    && (settings.technicalTimeoutPoints === undefined
+      || Array.isArray(settings.technicalTimeoutPoints) && settings.technicalTimeoutPoints.length === 2
+        && settings.technicalTimeoutPoints.every((point) => Number.isInteger(point) && point >= 0 && point <= 99));
 }
 
 export async function readStore() {
@@ -588,6 +702,7 @@ export async function readStore() {
     };
     transaction.oncomplete = () => {
       rememberPersistedMatches(loadedStore.matches);
+      rememberPersistedAuditEntries(loadedStore.auditLog);
       if (migrated) {
         try {
           localStorage.removeItem(STORAGE_KEY);
@@ -612,12 +727,16 @@ export async function writeStore(store) {
     const transaction = database.transaction(DATABASE_STORE, "readwrite");
     const objectStore = transaction.objectStore(DATABASE_STORE);
     const matchKeys = new Set(store.matches.map((match) => `${MATCH_KEY_PREFIX}${match.id}`));
+    const auditKeys = new Set(store.auditLog.map((entry) => `${AUDIT_KEY_PREFIX}${entry.id}`));
     let failure;
     const keysRequest = objectStore.getAllKeys();
     keysRequest.onsuccess = () => {
       try {
         keysRequest.result.forEach((key) => {
           if (typeof key === "string" && key.startsWith(MATCH_KEY_PREFIX) && !matchKeys.has(key)) {
+            objectStore.delete(key);
+          }
+          if (typeof key === "string" && key.startsWith(AUDIT_KEY_PREFIX) && !auditKeys.has(key)) {
             objectStore.delete(key);
           }
         });
@@ -628,12 +747,19 @@ export async function writeStore(store) {
             matchIds: store.matches.map((match) => match.id),
             teamProfiles: store.teamProfiles,
             tournaments: store.tournaments,
+            plugins: store.plugins,
           },
         });
         store.matches.forEach((match) => {
           const serialized = JSON.stringify(match);
           if (persistedMatches.get(match.id) !== serialized) {
             objectStore.put({ key: `${MATCH_KEY_PREFIX}${match.id}`, value: match });
+          }
+        });
+        store.auditLog.forEach((entry) => {
+          const serialized = JSON.stringify(entry);
+          if (persistedAuditEntries.get(entry.id) !== serialized) {
+            objectStore.put({ key: `${AUDIT_KEY_PREFIX}${entry.id}`, value: entry });
           }
         });
       } catch (error) {
@@ -647,6 +773,7 @@ export async function writeStore(store) {
     };
     transaction.oncomplete = () => {
       rememberPersistedMatches(store.matches);
+      rememberPersistedAuditEntries(store.auditLog);
       resolve();
     };
     transaction.onabort = () => reject(storageError(failure || transaction.error));
@@ -708,17 +835,19 @@ export function createEmptyMatch() {
       bestOf: 5, regularTarget: 25, finalTarget: 15, setTargets: [25, 25, 25, 25, 15],
       matchProfile: "six", category: "一般", division: "男子", winBy: 2, timeoutLimit: 2,
       substitutionLimit: 6, technicalTimeoutPoints: [0, 0], rosterLimit: 30, courtChangeInterval: 8, courtChangeSets: [1, 2, 3, 4], rotationEnabled: true,
-      warmupMinutes: 10, note: "",
+      warmupMinutes: 10, note: "", pluginId: "standard",
     },
     teams: [
       { id: teamA, name: "チーム A", uniformColor: "#1d4ed8", liberoUniformColor: "#facc15", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
       { id: teamB, name: "チーム B", uniformColor: "#f97316", liberoUniformColor: "#22c55e", staff: teamStaffDefaults(), players: [], rotationLineup: [] },
     ],
     sets: [{ number: 1, initialServiceTeamId: teamA, startingLineups: { [teamA]: [], [teamB]: [] }, events: [] }],
+    auditLog: [],
+    video: { fileName: "", syncPoints: [], version: 1 },
   };
 }
 
-export function buildStore(matches, teamProfiles = [], tournaments = []) {
+export function buildStore(matches, teamProfiles = [], tournaments = [], auditLog = [], plugins = []) {
   const unique = new Map();
   for (const match of matches) unique.set(match.id, match);
   const savedMatches = [...unique.values()].slice(0, MAX_MATCHES);
@@ -737,5 +866,7 @@ export function buildStore(matches, teamProfiles = [], tournaments = []) {
         })),
       } : {}),
     })),
+    auditLog: auditLog.slice(0, MAX_AUDIT_ENTRIES),
+    plugins: plugins.slice(0, MAX_RULE_PLUGINS),
   };
 }

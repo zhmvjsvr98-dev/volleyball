@@ -129,6 +129,8 @@ input::placeholder { color: var(--muted); opacity: .72; }
 .point-button { min-width: 72px; min-height: 48px; font-size: 1.2rem; }
 .score-middle { display: flex; min-width: 72px; flex-direction: column; align-items: center; justify-content: center; gap: .5rem; color: var(--muted); font-size: .8rem; font-weight: 800; text-align: center; }
 .score-middle strong { color: var(--ink); font-size: 1.25rem; }
+.live-win-probability { display: grid; gap: .1rem; margin-top: .25rem; font-size: .68rem; }
+.live-win-probability strong { color: var(--ink); font-size: .7rem; }
 .set-navigation { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding: .8rem 0; }
 .set-strip { display: flex; flex-wrap: wrap; gap: .4rem; }
 .set-chip { min-width: 86px; padding: .38rem .55rem; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: .73rem; text-align: center; }
@@ -290,6 +292,47 @@ input::placeholder { color: var(--muted); opacity: .72; }
   .page-shell { padding: 0 .5rem; }
   .form-grid, .rules-grid, .teams-grid, .team-history-grid, .officials-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+#match-video-player {
+  display: block;
+  width: 100%;
+  max-height: min(65vh, 720px);
+  margin: 1rem 0;
+  background: #05080d;
+  border-radius: 10px;
+}
+
+.video-sync-point {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.event-video-button {
+  margin: 0.25rem 0.5rem;
+}
+
+#event-log li {
+  grid-template-columns: 75px minmax(0, 1fr);
+  align-items: center;
+}
+
+#event-log .event-video-button {
+  grid-column: 2;
+  justify-self: start;
+}
+
+#video-event-clips li {
+  display: block;
+}
+
+#video-event-clips .event-video-button {
+  width: 100%;
+  text-align: left;
+}
 @media (max-width: 820px) {
   .toolbar { align-items: flex-start; flex-direction: column; }
   .toolbar-controls { width: 100%; }
@@ -369,6 +412,17 @@ input::placeholder { color: var(--muted); opacity: .72; }
   margin-bottom: 1rem;
 }
 
+.heatmap-bars { display: grid; gap: .65rem; margin-block: .8rem; }
+.heatmap-row { display: grid; grid-template-columns: minmax(7rem, 10rem) minmax(5rem, 1fr) 4.5rem; align-items: center; gap: .65rem; }
+.heatmap-track { height: .9rem; overflow: hidden; border-radius: 999px; background: var(--surface-soft); }
+.heatmap-fill { height: 100%; border-radius: inherit; background: var(--team-accent, #2563eb); }
+.data-quality-score { font-size: 1.7rem; font-weight: 800; }
+.lineup-recommendation { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .75rem; }
+.lineup-recommendation-card { padding: .75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+@media (max-width: 560px) {
+  .heatmap-row { grid-template-columns: 6.5rem minmax(3rem, 1fr) 3.5rem; gap: .4rem; font-size: .85rem; }
+}
+
 .play-entry-form .field[hidden] {
   display: none !important;
 }
@@ -388,6 +442,16 @@ input::placeholder { color: var(--muted); opacity: .72; }
   border: 2px solid #49734f;
   border-radius: 8px;
   background: #176436;
+}
+
+.rally-course-clear {
+  justify-self: start;
+  margin-top: .65rem;
+}
+
+.rally-course-clear[aria-pressed="true"] {
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
 }
 
 .rally-course-half {
