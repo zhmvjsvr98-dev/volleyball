@@ -786,6 +786,10 @@ export function validateImport(value) {
   return validateMatch(upgraded) ? upgraded : null;
 }
 
+export function validateStoreImport(value) {
+  return upgradeStore(value);
+}
+
 export function createId() {
   if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `match-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

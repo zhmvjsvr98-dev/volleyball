@@ -1,8 +1,8 @@
-const CACHE_NAME = "jva-score-static-v66";
+const CACHE_NAME = "jva-score-static-v71";
 const APP_FILES = [
   "./",
   "./index.html",
-  "./style.css?v=50",
+  "./style.css?v=52",
   "./app.js",
   "./score.js",
   "./storage.js",
@@ -34,12 +34,15 @@ async function fetchWithCacheFallback(cache, key, request) {
     if (cached) return cached;
     throw error;
   }
-  if (response.ok) {
-    try {
-      await cache.put(key, response.clone());
-    } catch (error) {
-      console.warn("Service Worker cache update failed:", error);
-    }
+  if (!response.ok) {
+    const cached = await cache.match(key);
+    if (cached) return cached;
+    return response;
+  }
+  try {
+    await cache.put(key, response.clone());
+  } catch (error) {
+    console.warn("Service Worker cache update failed:", error);
   }
   return response;
 }

@@ -47,7 +47,11 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--page); color: var(--ink); line-height: 1.5; }
+body {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
 button, input, select { font: inherit; }
 button, select { -webkit-tap-highlight-color: transparent; }
 button { touch-action: manipulation; }
@@ -584,7 +588,11 @@ div.score-timeline-controls:not([hidden]) {
 }
 
 /* Multi-page shell styled after the supplied volleyball record screenshots. */
-body { background: var(--page); }
+body {
+  background:
+    radial-gradient(ellipse at 78% 4%, rgb(19 116 174 / 14%), transparent 38rem),
+    linear-gradient(145deg, #08152b, #0a1e3b 52%, #071329);
+}
 .app-header {
   position: relative; z-index: 2; min-height: 58px; padding: .4rem 1rem;
   border-bottom: 1px solid #29446a; background: #102e5b;
@@ -602,7 +610,28 @@ body { background: var(--page); }
 .device-picker { display: flex; align-items: center; gap: .35rem; color: #dbe8fd; font-size: .68rem; }
 .device-picker select { width: auto; min-width: 110px; min-height: 34px; padding: .25rem .4rem; border-color: #38547a; background: #173965; color: #f0f5ff; }
 .button-quiet { color: #eaf3ff; border-color: #38547a; background: #173965; }
-.app-layout { display: flex; width: 100%; min-height: calc(100vh - 58px); padding: 0 .55rem .55rem 0; gap: .5rem; }
+.app-layout {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: 100%;
+  min-height: calc(100vh - 58px);
+  padding: 0 .55rem .55rem 0;
+  gap: .5rem;
+}
+.app-layout::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 66% 35%, rgb(24 113 174 / 13%), transparent 42%),
+    linear-gradient(90deg, transparent calc(27% - 1px), rgb(100 169 224 / 11%) 27%, transparent calc(27% + 1px)),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgb(100 169 224 / 15%) 50%, transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent calc(73% - 1px), rgb(100 169 224 / 11%) 73%, transparent calc(73% + 1px)),
+    linear-gradient(0deg, transparent calc(50% - 1px), rgb(100 169 224 / 12%) 50%, transparent calc(50% + 1px));
+  content: "";
+  pointer-events: none;
+}
 .sidebar {
   position: sticky; top: 0; display: flex; width: 174px; height: calc(100vh - 64px);
   flex: 0 0 174px; flex-direction: column; justify-content: space-between; overflow-y: auto;
@@ -623,7 +652,13 @@ body { background: var(--page); }
 .history-label select { min-width: 150px; min-height: 34px; padding: .3rem; }
 .app-page {
   min-height: min(82vh, 850px); padding: 1rem; overflow: hidden;
-  border: 1px solid #1e3559; border-radius: 12px; background: #050b1c;
+  border: 1px solid #1e3559; border-radius: 12px; background-color: #050b1c;
+  background-image:
+    radial-gradient(ellipse at 72% 0%, rgb(20 100 167 / 9%), transparent 46%),
+    linear-gradient(90deg, transparent calc(28% - 1px), rgb(103 159 215 / 4%) 28%, transparent calc(28% + 1px)),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgb(103 159 215 / 5%) 50%, transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent calc(72% - 1px), rgb(103 159 215 / 4%) 72%, transparent calc(72% + 1px)),
+    linear-gradient(0deg, transparent calc(50% - 1px), rgb(103 159 215 / 4%) 50%, transparent calc(50% + 1px));
   box-shadow: 0 10px 28px rgb(2 9 24 / 25%); color: #eaf1ff;
 }
 .app-page[hidden] { display: none !important; }
@@ -896,9 +931,51 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
   overflow-y: auto;
   min-height: min(82vh, 850px);
   background-color: #07142d;
-  background-image: linear-gradient(rgb(55 91 150 / 9%) 1px, transparent 1px), linear-gradient(90deg, rgb(55 91 150 / 9%) 1px, transparent 1px), radial-gradient(ellipse at 50% 58%, #193c84 0%, #0b2049 43%, #07142d 78%);
-  background-size: 25px 25px, 25px 25px, auto;
+  background-image:
+    radial-gradient(ellipse at 17% 5%, rgb(166 220 255 / 16%), transparent 28%),
+    radial-gradient(ellipse at 83% 4%, rgb(166 220 255 / 14%), transparent 30%),
+    linear-gradient(112deg, transparent 10%, rgb(122 190 245 / 4%) 18%, transparent 27%),
+    linear-gradient(248deg, transparent 9%, rgb(122 190 245 / 4%) 17%, transparent 26%),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgb(151 190 234 / 20%) 50%, transparent calc(50% + 1px)),
+    linear-gradient(0deg, transparent calc(50% - 1px), rgb(151 190 234 / 17%) 50%, transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent calc(25% - 1px), rgb(151 190 234 / 12%) 25%, transparent calc(25% + 1px)),
+    linear-gradient(90deg, transparent calc(75% - 1px), rgb(151 190 234 / 12%) 75%, transparent calc(75% + 1px)),
+    radial-gradient(ellipse at 50% 58%, #193c84 0%, #0b2049 43%, #07142d 78%);
 }
+.home-page::before {
+  position: absolute;
+  top: 7%;
+  right: 6%;
+  width: clamp(150px, 24vw, 340px);
+  aspect-ratio: 1;
+  border: 1px solid rgb(176 213 255 / 26%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 35%), transparent 8%),
+    conic-gradient(from 25deg, transparent 0deg 48deg, rgb(160 203 250 / 23%) 49deg 51deg, transparent 52deg 137deg, rgb(160 203 250 / 20%) 138deg 140deg, transparent 141deg 228deg, rgb(160 203 250 / 19%) 229deg 231deg, transparent 232deg);
+  box-shadow: inset -20px -18px 50px rgb(1 10 29 / 38%), 0 0 42px rgb(56 141 218 / 9%);
+  content: "";
+  opacity: .52;
+  pointer-events: none;
+}
+.home-page::after {
+  position: absolute;
+  z-index: 0;
+  right: 12%;
+  bottom: 13%;
+  left: 12%;
+  height: 19%;
+  border: 1px solid rgb(176 213 255 / 13%);
+  border-top: 3px solid rgb(190 224 255 / 26%);
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1px), rgb(190 224 255 / 15%) 50%, transparent calc(50% + 1px)),
+    repeating-linear-gradient(0deg, transparent 0 13px, rgb(176 213 255 / 9%) 13px 14px),
+    repeating-linear-gradient(90deg, transparent 0 27px, rgb(176 213 255 / 9%) 27px 28px);
+  content: "";
+  opacity: .66;
+  pointer-events: none;
+}
+.home-score-preview { z-index: 1; }
 .home-score-preview { position: absolute; top: 5%; left: 25%; display: grid; grid-template-columns: 1fr 1fr 1fr; width: 50%; border: 1px solid #23416c; border-radius: 9px; color: #4272ae; text-align: center; }
 .home-score-preview strong, .home-score-preview span { padding: .5rem; border-right: 1px solid #23416c; }
 .home-score-preview span { font-size: .75rem; font-weight: 800; }
@@ -1049,7 +1126,29 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
   .mock-event-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-:root[data-theme="light"] .app-page:not(.home-page) { background: #f6f8fc; color: #15223b; }
+:root[data-theme="light"] body {
+  background:
+    radial-gradient(ellipse at 78% 4%, rgb(8 126 183 / 9%), transparent 38rem),
+    linear-gradient(145deg, #e7eef7, #f2f6fb 52%, #e5edf7);
+}
+:root[data-theme="light"] .app-layout::before {
+  background:
+    radial-gradient(ellipse at 66% 35%, rgb(8 126 183 / 8%), transparent 42%),
+    linear-gradient(90deg, transparent calc(27% - 1px), rgb(49 105 154 / 10%) 27%, transparent calc(27% + 1px)),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgb(49 105 154 / 13%) 50%, transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent calc(73% - 1px), rgb(49 105 154 / 10%) 73%, transparent calc(73% + 1px)),
+    linear-gradient(0deg, transparent calc(50% - 1px), rgb(49 105 154 / 10%) 50%, transparent calc(50% + 1px));
+}
+:root[data-theme="light"] .app-page:not(.home-page) {
+  background-color: #f6f8fc;
+  background-image:
+    radial-gradient(ellipse at 72% 0%, rgb(8 126 183 / 5%), transparent 46%),
+    linear-gradient(90deg, transparent calc(28% - 1px), rgb(49 105 154 / 4%) 28%, transparent calc(28% + 1px)),
+    linear-gradient(90deg, transparent calc(50% - 1px), rgb(49 105 154 / 5%) 50%, transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent calc(72% - 1px), rgb(49 105 154 / 4%) 72%, transparent calc(72% + 1px)),
+    linear-gradient(0deg, transparent calc(50% - 1px), rgb(49 105 154 / 4%) 50%, transparent calc(50% + 1px));
+  color: #15223b;
+}
 :root[data-theme="light"] .panel,
 :root[data-theme="light"] .content-panel,
 :root[data-theme="light"] .setup-teams { border-color: #d6dfec; background: #fff; }
@@ -1138,6 +1237,7 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   @page manual-page { size: A4 portrait; margin: 10mm; }
   .app-header, .sidebar, .page-tools, .error-banner, .footer-note, .app-page:not([data-page-panel="output"]) { display: none !important; }
   .app-layout { display: block; min-height: 0; padding: 0; }
+  .app-layout::before { display: none; }
   .page-shell { margin: 0; padding: 0; }
   .app-page { min-height: 0; padding: 0; overflow: visible; border: 0; background: #fff; color: #111; }
   [data-page-panel="output"] { display: block !important; }

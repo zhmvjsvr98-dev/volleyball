@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=50">
+  <link rel="stylesheet" href="./style.css?v=52">
   <script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -44,6 +44,7 @@
         <button class="nav-item" data-page="tournaments">大会モード</button>
         <button class="nav-item" data-page="courts">マルチコート管理</button>
         <button class="nav-item" data-page="audit">イベント監査ログ</button>
+        <button class="nav-item" data-page="data-management">データ管理</button>
         <button class="nav-item" data-page="season">選手シーズン成績</button>
         <button class="nav-item" data-page="referee-training">審判トレーニング</button>
         <button class="nav-item" data-page="events">ラリー・イベント記録</button>
@@ -119,7 +120,7 @@
                     <span>メンバー登録</span><span>ローテーション設定</span><span>審判登録</span><span>開始確認</span>
                     <span class="mock-navigation-label">試合・大会</span>
                     <span>試合画面</span><span>大会モード</span><span>マルチコート管理</span><span>ラリー・イベント記録</span>
-                    <span>動画同期</span><span>選手シーズン成績</span><span>審判トレーニング</span><span>イベント監査ログ</span>
+                    <span>動画同期</span><span>選手シーズン成績</span><span>審判トレーニング</span><span>イベント監査ログ</span><span>データ管理</span>
                     <span class="mock-navigation-label">結果・出力</span>
                     <span>スコアシート</span><span>セット履歴</span><span>試合結果</span><span>スコアシート確認</span><span>記録票PDF</span>
                   </nav>
@@ -136,7 +137,7 @@
             <div class="manual-menu-guide">
               <div><b>試合の準備</b><p>大会管理・試合設定 → メンバー登録 → ローテーション設定 → 審判登録 → 開始確認</p></div>
               <div><b>試合中・大会管理</b><p>試合画面、ラリー・イベント記録、動画同期、大会モード、マルチコート管理</p></div>
-              <div><b>分析・記録管理</b><p>選手シーズン成績、審判トレーニング、イベント監査ログ</p></div>
+              <div><b>分析・記録管理</b><p>選手シーズン成績、審判トレーニング、イベント監査ログ、データ管理</p></div>
               <div><b>結果の確認・出力</b><p>スコアシート、セット履歴、試合結果、スコアシート確認、記録票PDF</p></div>
             </div>
             <ol class="manual-instructions">
@@ -411,6 +412,8 @@
               <li><b>過去の得点訂正：</b>得点訂正欄でチーム、加算/取消、理由（チャレンジ判定・記録訂正・その他）、説明を選んで「訂正を記録」します。訂正は理由とともにイベント履歴へ追加されます。訂正内容と現在の得点を記録責任者間で照合してください。</li>
               <li><b>試合履歴の切替：</b>画面上部の「保存済み試合」から試合を切り替えます。切替後に大会名、両チーム、日付、スコアが対象試合のものか確認してから操作してください。</li>
               <li><b>PDFとJSONの違い：</b>印刷/PDFは閲覧・配布用の帳票です。「JSONを書き出す」は現在選択中の試合データのバックアップです。JSONは別の安全な場所に保管し、復元が必要な場合は「JSONを読み込む」から選びます。</li>
+              <li><b>大会を含む一括バックアップ：</b>「記録票PDF」の「全データをバックアップ」を押すと、大会・全試合・チーム履歴・監査ログ・ローカルルールを1つのJSONに保存します。別の端末へ移すときは、受け取り側で同じアプリを開き、「復元する一括バックアップJSON」からファイルを選びます。検証結果の件数を確認し、上書き確認にチェックして復元します。</li>
+              <li><b>復元時の注意：</b>一括復元は現在の端末にある試合・大会・チーム履歴・監査ログ・ローカルルールを、バックアップの内容で置き換えます。復元前に残しておきたい現在データを一括バックアップしてください。ファイルの形式・件数・関連付けが検証に通らない場合は復元されません。復元後は対象の大会・試合・順位を確認してください。</li>
               <li><b>JSON読み込み：</b>読み込むファイルはアプリが出力した試合JSONを使用します。同じ試合IDがある場合は置き換え確認が表示されます。置き換え前に現在データのJSONを別途保存してください。読み込み後はチーム名・得点・セット履歴を確認します。</li>
               <li><b>保存範囲：</b>試合履歴・チーム履歴・大会情報は利用中のブラウザー内に保存され、端末間では自動同期されません。ブラウザーデータの削除、端末故障、保存容量不足で失われる可能性があります。重要な試合は試合終了後だけでなく、運用ルールに応じて途中経過もJSONでバックアップしてください。</li>
               <li><b>動画データ：</b>動画本体はJSONバックアップにも含まれません。復元後に動画を再選択し、必要な同期ポイントを確認してください。</li>
@@ -426,6 +429,7 @@
               <li><b>分析に数値が出ない：</b>対象となるプレーや選手情報が記録されているか確認します。対象データがない指標は「—」等になり、外部試合のスコア手入力だけでは個人プレー分析を作成できません。</li>
               <li><b>動画へ移動できない：</b>試合設定で動画を再選択し、再生可能な状態になるまで待ちます。対象イベントと同期ポイントが存在するか、動画時間を超えていないかを確認します。別ファイルに切り替えた場合は同期ポイントを登録し直します。</li>
               <li><b>データが保存されない / エラー表示が出る：</b>ブラウザーの保存容量、空き容量、プライベートブラウズ設定を確認します。画面に保存エラーが出ている場合は保存済みとみなさず、エラー解消とJSONバックアップを確認してからページを閉じます。</li>
+              <li><b>Safariで文字だけの画面になり、ボタンが動かない：</b>CSSまたはJavaScriptの読み込みに失敗している可能性があります。ネットワーク接続を確認してページを再読み込みし、修正版が公開された後はSafariを終了してからサイトを開き直します。まだ直らない場合はSafariのコンテンツブロッカー/拡張機能を確認します。「Webサイトデータを管理」からサイトデータを削除すると、端末内の試合・大会データも消える可能性があるため、JSONバックアップ前には削除しないでください。</li>
               <li><b>更新後に古い画面が表示される：</b>ページを再読み込みします。オフライン利用中は新しいファイルを取得できない場合があるため、ネットワークに接続して再読み込みした後に、表示される機能と保存試合を確認します。</li>
             </ul>
           </section>
@@ -979,6 +983,33 @@
         <div class="page-heading"><div><span class="eyebrow">APPEND-ONLY HISTORY</span><h1>イベント監査ログ</h1><p>試合イベントや選手登録の追加・訂正・削除を、通常の試合イベントとは別に記録します。</p></div><button id="export-audit-log" class="button button-secondary" type="button">監査ログを書き出す</button></div>
         <section class="panel content-panel"><div id="audit-log-table"></div></section>
       </section>
+      <section class="app-page" data-page-panel="data-management" hidden>
+        <div class="page-heading"><div><span class="eyebrow">DATA BACKUP & RESTORE</span><h1>データ管理</h1><p>この端末の大会・試合・チーム履歴を一括でバックアップし、必要な場合に復元します。</p></div></div>
+        <section class="panel content-panel">
+          <h2>大会・全データの一括バックアップ / 復元</h2>
+          <p>大会、試合履歴、チーム履歴、監査ログ、ローカルルール設定を1つのJSONにまとめます。動画ファイル本体は含まれません。保存データの移行や復旧に利用できます。</p>
+          <div class="output-actions">
+            <button id="export-store-backup" class="button button-primary" type="button">全データをバックアップ</button>
+          </div>
+          <label class="field" for="store-backup-file">復元する一括バックアップJSON
+            <input id="store-backup-file" type="file" accept="application/json,.json">
+          </label>
+          <div class="output-actions">
+            <button id="restore-store-backup" class="button button-secondary" type="button" disabled>検証済みバックアップを復元</button>
+          </div>
+          <label class="check-setting"><input id="store-backup-overwrite" type="checkbox"> 現在の端末にある全データを上書きすることを理解しました</label>
+          <p id="store-backup-status" class="notice" role="status" aria-live="polite">復元前にバックアップ内容を検証します。既存データを置き換えるため、必要なデータを先に書き出してください。</p>
+        </section>
+        <section class="panel content-panel">
+          <h2>復元時の注意</h2>
+          <ul class="manual-bullets">
+            <li>復元は現在の端末の大会・試合・チーム履歴・監査ログ・ローカルルールを、選択したバックアップの内容で置き換えます。必要なデータは先にバックアップしてください。</li>
+            <li>ファイル選択後に形式、内容、件数、大会と試合の関連付けを検証します。検証に失敗した場合は復元しません。復元には上書きチェックと最終確認の両方が必要です。</li>
+            <li>動画ファイル本体はバックアップに含まれません。復元後に動画を再選択して同期状態を確認してください。</li>
+            <li>JSONファイルは端末外の安全な場所にも保管してください。GitHub Pagesを利用しても、端末間の自動同期やクラウド保存は行われません。</li>
+          </ul>
+        </section>
+      </section>
       <dialog id="tournament-fixture-dialog" class="tournament-result-dialog">
         <form id="tournament-fixture-form" method="dialog">
           <h2 id="tournament-fixture-dialog-heading">トーナメントの対戦相手を設定</h2>
@@ -1076,7 +1107,7 @@
           </label>
           <button class="button button-primary" data-print type="button">選択した帳票を印刷 / PDF保存</button>
           <hr>
-          <h2>バックアップ</h2><p>試合データはこの端末のブラウザー内（IndexedDB）に保存されます。試合履歴は最大1,000件です。端末やブラウザーの保存容量には上限があるため、試合後にJSON形式でバックアップしてください。別の端末へ自動同期はされません。</p>
+          <h2>試合データのバックアップ</h2><p>現在選択中の試合だけをJSONで書き出します。試合履歴はこの端末のブラウザー内（IndexedDB）に保存され、別の端末へ自動同期はされません。</p>
           <div class="output-actions"><button id="export-match" class="button button-secondary" type="button">JSONを書き出す</button><button id="import-match" class="button button-secondary" type="button">JSONを読み込む</button><input id="import-file" class="visually-hidden" type="file" accept="application/json,.json"></div>
         </section>
         <section class="panel content-panel score-sheet-preview-panel">

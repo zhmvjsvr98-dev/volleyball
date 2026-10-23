@@ -3,7 +3,7 @@ import {
   canScore, getCourtPlayerCount, getCurrentLineup, getDecidingSetCourtChangePoint, getDefaultSetTargets, getEventDescription, getScore, getSetResult, getSetTarget, getSetWins, getServingState, isMatchComplete, usesCourtRotation,
 } from "./score.js";
 import {
-  buildStore, createEmptyMatch, createId, MAX_MATCHES, readStore, validateImport, validateRulePlugin, writeStore,
+  buildStore, createEmptyMatch, createId, MAX_MATCHES, readStore, validateImport, validateRulePlugin, validateStoreImport, writeStore,
 } from "./storage.js";
 import {
   createQualityEventMatch, createQualityMatch, createQualityStressRecords, deleteQualityDatabase,
@@ -11,6 +11,7 @@ import {
 } from "./quality-assurance.js";
 
 const byId = (id) => document.getElementById(id);
+const MAX_STORE_BACKUP_BYTES = 200_000_000;
 const elements = {
   saveStatus: byId("save-status"),
   history: byId("match-history"),
@@ -96,6 +97,7 @@ let videoPlaybackQueueIndex = -1;
 let developerModeEnabled = false;
 let qualityRunActive = false;
 let lastQualityReport = null;
+let pendingStoreBackup = null;
 const autoPreparedTournamentReports = new Set();
 let refereeQuestionOffset = 0;
 
@@ -6746,6 +6748,121 @@ function downloadJson(match) {
   downloadJsonData(match, `jva-score-${match.matchInfo.matchDate || "match"}.json`);
 }
 
+async function prepareStoreForBackup() {
+  if (storageRecoveryRequired) {
+    throw new Error("既存の保存データを読み込めないため、空のバックアップは作成できません。正しい一括バックアップを復元してください。");
+  }
+  clearTimeout(saveTimer);
+  if (dirty) await persistNow();
+  await persistenceQueue;
+  if (dirty) throw new Error("最新の試合データを保存できませんでした。保存状態を確認してからバックアップしてください。");
+}
+
+async function exportStoreBackup() {
+  await prepareStoreForBackup();
+  const backup = {
+    format: "jva-volleyball-score-backup",
+    formatVersion: 1,
+    exportedAt: new Date().toISOString(),
+    selectedMatchId: currentMatch.id,
+    store: structuredClone(store),
+  };
+  if (new Blob([JSON.stringify(backup, null, 2)]).size > MAX_STORE_BACKUP_BYTES) {
+    throw new Error("一括バックアップが200MBを超えるため書き出せません。試合履歴や監査ログを分けて保存してください。");
+  }
+  downloadJsonData(backup, `jva-volleyball-backup-${new Date().toISOString().slice(0, 10)}.json`);
+  byId("store-backup-status").textContent =
+    `大会 ${store.tournaments.length}件・試合 ${store.matches.length}件・チーム履歴 ${store.teamProfiles.length}件をバックアップしました。`;
+}
+
+function getBackupSummary(backup, normalizedStore) {
+  const selectedMatchExists = normalizedStore.matches.some((match) => match.id === backup.selectedMatchId);
+  return {
+    exportedAt: backup.exportedAt,
+    selectedMatchId: selectedMatchExists ? backup.selectedMatchId : normalizedStore.matches[0]?.id || "",
+    matchCount: normalizedStore.matches.length,
+    tournamentCount: normalizedStore.tournaments.length,
+    teamProfileCount: normalizedStore.teamProfiles.length,
+    auditCount: normalizedStore.auditLog.length,
+    pluginCount: normalizedStore.plugins.length,
+  };
+}
+
+function validateStoreBackup(backup) {
+  if (!backup || typeof backup !== "object" || Array.isArray(backup)
+    || backup.format !== "jva-volleyball-score-backup" || backup.formatVersion !== 1
+    || typeof backup.exportedAt !== "string" || !Number.isFinite(Date.parse(backup.exportedAt))
+    || typeof backup.selectedMatchId !== "string" || !("store" in backup)
+    || Object.keys(backup).some((key) =>
+      !["format", "formatVersion", "exportedAt", "selectedMatchId", "store"].includes(key))) {
+    throw new Error("大会一括バックアップの形式またはバージョンが正しくありません。");
+  }
+  const normalizedStore = validateStoreImport(backup.store);
+  return { normalizedStore, summary: getBackupSummary(backup, normalizedStore) };
+}
+
+async function readStoreBackupFile(file) {
+  const status = byId("store-backup-status");
+  pendingStoreBackup = null;
+  byId("restore-store-backup").disabled = true;
+  byId("store-backup-overwrite").checked = false;
+  if (file.size > MAX_STORE_BACKUP_BYTES) {
+    throw new Error("バックアップファイルが大きすぎます（上限200MB）。");
+  }
+  let backup;
+  try {
+    backup = JSON.parse(await file.text());
+  } catch {
+    throw new Error("バックアップJSONを読み取れません。ファイルが破損していないか確認してください。");
+  }
+  const { normalizedStore, summary } = validateStoreBackup(backup);
+  pendingStoreBackup = { store: normalizedStore, summary };
+  status.textContent = [
+    `検証成功（書き出し日時: ${new Date(summary.exportedAt).toLocaleString("ja-JP")}）`,
+    `大会 ${summary.tournamentCount}件 / 試合 ${summary.matchCount}件 / チーム履歴 ${summary.teamProfileCount}件`,
+    `監査ログ ${summary.auditCount}件 / ローカルルール ${summary.pluginCount}件`,
+    "内容を確認し、上書き確認にチェックすると復元できます。",
+  ].join("　");
+  byId("restore-store-backup").disabled = false;
+}
+
+async function restoreStoreBackup() {
+  if (!pendingStoreBackup || !byId("store-backup-overwrite").checked) {
+    throw new Error("バックアップを検証し、現在の端末データを上書きする確認にチェックしてください。");
+  }
+  const { store: restoredStore, summary } = pendingStoreBackup;
+  const confirmed = confirm(
+    `この端末の保存データをバックアップ内容で置き換えます。\n\n`
+    + `大会 ${summary.tournamentCount}件 / 試合 ${summary.matchCount}件 / チーム履歴 ${summary.teamProfileCount}件\n\n`
+    + "現在の端末データは上書きされます。必要なデータを別途バックアップしたことを確認してください。",
+  );
+  if (!confirmed) return;
+  clearTimeout(saveTimer);
+  if (dirty) await persistNow();
+  await persistenceQueue;
+  const snapshot = structuredClone(restoredStore);
+  const write = persistenceQueue.then(() => writeStore(snapshot));
+  persistenceQueue = write.then(() => undefined, () => undefined);
+  await write;
+  store = snapshot;
+  currentMatch = structuredClone(
+    store.matches.find((match) => match.id === summary.selectedMatchId)
+      || store.matches[0]
+      || createEmptyMatch(),
+  );
+  pendingStoreBackup = null;
+  byId("store-backup-file").value = "";
+  byId("store-backup-overwrite").checked = false;
+  byId("restore-store-backup").disabled = true;
+  storageRecoveryRequired = false;
+  dirty = false;
+  clearActiveVideo();
+  render();
+  setSaveStatus("復元済み");
+  byId("store-backup-status").textContent =
+    `復元しました（大会 ${summary.tournamentCount}件 / 試合 ${summary.matchCount}件 / チーム履歴 ${summary.teamProfileCount}件）。動画ファイル本体は含まれません。`;
+}
+
 function importMatchFile(file) {
   if (file.size > 20_000_000) throw new Error("ファイルが大きすぎます（上限20MB）。");
   return file.text().then((text) => {
@@ -7250,6 +7367,32 @@ function bindEvents() {
   }
   byId("export-match").addEventListener("click", () => downloadJson(currentMatch));
   byId("import-match").addEventListener("click", () => byId("import-file").click());
+  byId("export-store-backup").addEventListener("click", () => {
+    exportStoreBackup().then(clearError).catch((error) => showError(error.message));
+  });
+  byId("store-backup-file").addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    byId("store-backup-status").textContent = "バックアップを検証しています…";
+    readStoreBackupFile(file)
+      .then(clearError)
+      .catch((error) => {
+        pendingStoreBackup = null;
+        byId("restore-store-backup").disabled = true;
+        byId("store-backup-status").textContent = "バックアップを検証できませんでした。";
+        showError(error.message);
+      });
+  });
+  byId("store-backup-overwrite").addEventListener("change", (event) => {
+    if (!pendingStoreBackup) return;
+    const confirmationMessage = " 上書き確認済みです。復元ボタンを押すと最終確認が表示されます。";
+    const status = byId("store-backup-status");
+    status.textContent = status.textContent.replace(confirmationMessage, "");
+    if (event.target.checked) status.textContent += confirmationMessage;
+  });
+  byId("restore-store-backup").addEventListener("click", () => {
+    restoreStoreBackup().then(clearError).catch((error) => showError(error.message));
+  });
   byId("import-file").addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -7611,7 +7754,7 @@ function initializeDeviceSettings() {
 }
 
 function navigateTo(page, updateAddress = true) {
-  const validPages = new Set(["home", "manual", "setup", "members", "rotation", "staff", "confirm", "match", "tournaments", "courts", "audit", "season", "referee-training", "events", "video-sync", "scoresheet", "sets", "result", "verify", "output", "quality-assurance"]);
+  const validPages = new Set(["home", "manual", "setup", "members", "rotation", "staff", "confirm", "match", "tournaments", "courts", "audit", "data-management", "season", "referee-training", "events", "video-sync", "scoresheet", "sets", "result", "verify", "output", "quality-assurance"]);
   let selected = validPages.has(page) ? page : "home";
   if (selected === "quality-assurance" && !developerModeEnabled) {
     showError("品質保証機能は開発者モードでのみ利用できます。URLに ?developer=1 を指定してください。");
