@@ -1,3 +1,5 @@
+import { describePlayerRole, PLAYER_POSITIONS, sortPlayersByNumber } from "./storage.js";
+
 function element(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -81,14 +83,14 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   thead.append(headerRow);
   const tbody = element("tbody");
 
-  for (const player of team.players) {
+  for (const player of sortPlayersByNumber(team.players)) {
     const row = element("tr");
     row.append(element("td", "", player.number || "—"));
     const nameCell = element("td", "", player.name);
     if (player.isCaptain) nameCell.append(element("span", "captain-tag", "C"));
     if (player.isLibero) nameCell.append(element("span", "captain-tag", "L"));
     row.append(nameCell);
-    row.append(element("td", "", player.isCaptain ? "キャプテン" : player.isLibero ? "リベロ" : "選手"));
+    row.append(element("td", "", describePlayerRole(player)));
     const removeCell = element("td");
     const remove = element("button", "remove-player", "×");
     remove.type = "button";
@@ -120,15 +122,25 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   liberoCheck.type = "checkbox";
   liberoCheck.name = "libero";
   liberoLabel.append(liberoCheck, document.createTextNode("リベロ"));
+  const positionLabel = element("label", "field");
+  positionLabel.append(document.createTextNode("ポジション"));
+  const positionSelect = element("select");
+  positionSelect.name = "position";
+  positionSelect.setAttribute("aria-label", "ポジション");
+  positionSelect.append(new Option("未設定", ""));
+  for (const [code, label] of PLAYER_POSITIONS) positionSelect.append(new Option(`${label}（${code}）`, code));
+  positionLabel.append(positionSelect);
   const addButton = element("button", "button button-secondary", "選手を追加");
   addButton.type = "submit";
   addButton.disabled = rosterLocked || team.players.length >= rosterLimit;
   form.querySelectorAll("input").forEach((input) => { input.disabled = rosterLocked; });
+  positionSelect.disabled = rosterLocked;
   form.append(
   numberLabel,
   namePlayerLabel,
   captainLabel,
   liberoLabel,
+  positionLabel,
   addButton
 );
 

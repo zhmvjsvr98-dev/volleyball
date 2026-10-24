@@ -6,12 +6,32 @@ const METADATA_KEY = "metadata";
 const MATCH_KEY_PREFIX = "match:";
 const AUDIT_KEY_PREFIX = "audit:";
 export const MAX_MATCHES = 1_000;
+export function sortPlayersByNumber(players) {
+  const value = (player) => (/^\d+$/.test(player.number) ? Number(player.number) : Infinity);
+  return [...players].sort((a, b) => value(a) - value(b));
+}
+
+export const PLAYER_POSITIONS = [
+  ["OH", "アウトサイドヒッター"],
+  ["MB", "ミドルブロッカー"],
+  ["S", "セッター"],
+  ["OP", "オポジット"],
+];
+
+export function describePlayerRole(player) {
+  const parts = [];
+  if (player.isCaptain) parts.push("キャプテン(C)");
+  if (player.isLibero) parts.push("リベロ(L)");
+  const position = PLAYER_POSITIONS.find(([code]) => code === player.position);
+  if (position) parts.push(`${position[1]}(${position[0]})`);
+  return parts.length ? parts.join(" / ") : "選手";
+}
 const MAX_TEAM_PROFILES = 100;
 const MAX_TOURNAMENTS = 100;
 const MAX_AUDIT_ENTRIES = 1_000_000;
 const MAX_RULE_PLUGINS = 100;
 const MAX_EVENTS_PER_SET = 2_000;
-const OFFICIAL_ROLES = ["firstReferee", "secondReferee", "scorer", "assistantScorer", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"];
+const OFFICIAL_ROLES = ["firstReferee", "secondReferee", "thirdReferee", "challengeReferee", "scorer", "assistantScorer", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"];
 let databasePromise;
 let persistedMatches = new Map();
 let persistedAuditEntries = new Map();
@@ -164,7 +184,8 @@ function validatePlayer(player) {
     && player.name.trim().length > 0
     && player.name.length <= 60
     && typeof player.isCaptain === "boolean"
-    && typeof player.isLibero === "boolean";
+    && typeof player.isLibero === "boolean"
+    && (player.position === undefined || player.position === "" || PLAYER_POSITIONS.some(([code]) => code === player.position));
 }
 
 function validateTeamProfile(profile, requireSavedAt = false) {
@@ -517,11 +538,12 @@ function upgradeMatch(match) {
     uniformColor: isText(team?.uniformColor, 20) ? team.uniformColor : "#1d4ed8",
     liberoUniformColor: isText(team?.liberoUniformColor, 20) ? team.liberoUniformColor : "#facc15",
     staff: isPlainObject(team?.staff) ? team.staff : {},
-    players: Array.isArray(team?.players) ? team.players.map((player) => ({
+    players: Array.isArray(team?.players) ? sortPlayersByNumber(team.players.map((player) => ({
       ...player,
       isCaptain: Boolean(player?.isCaptain),
       isLibero: Boolean(player?.isLibero),
-    })) : [],
+      position: PLAYER_POSITIONS.some(([code]) => code === player?.position) ? player.position : "",
+    }))) : [],
   }));
   const sets = Array.isArray(match.sets) ? match.sets.map((set, index) => ({
     ...set,

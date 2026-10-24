@@ -1,11 +1,14 @@
-const CACHE_NAME = "jva-score-static-v71";
+importScripts("./version.js");
+const CACHE_NAME = `jva-score-static-${self.APP_VERSION}`;
 const APP_FILES = [
   "./",
   "./index.html",
-  "./style.css?v=52",
+  "./style.css?v=54",
   "./app.js",
   "./score.js",
+  "./version.js",
   "./storage.js",
+  "./roster-import.js",
   "./quality-assurance.js",
   "./components.js",
   "./manifest.webmanifest",
@@ -56,5 +59,5 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   event.respondWith(caches.open(CACHE_NAME)
-    .then((cache) => fetchWithCacheFallback(cache, request)));
+    .then((cache) => fetchWithCacheFallback(cache, request, request)));
 });

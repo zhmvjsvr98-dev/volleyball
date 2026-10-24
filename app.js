@@ -2,8 +2,9 @@ import { renderTeamCard, makeEventRow } from "./components.js";
 import {
   canScore, getCourtPlayerCount, getCurrentLineup, getDecidingSetCourtChangePoint, getDefaultSetTargets, getEventDescription, getScore, getSetResult, getSetTarget, getSetWins, getServingState, isMatchComplete, usesCourtRotation,
 } from "./score.js";
+import { parseRosterText, recognizeRosterImage } from "./roster-import.js";
 import {
-  buildStore, createEmptyMatch, createId, MAX_MATCHES, readStore, validateImport, validateRulePlugin, validateStoreImport, writeStore,
+  buildStore, createEmptyMatch, createId, describePlayerRole, MAX_MATCHES, PLAYER_POSITIONS, readStore, sortPlayersByNumber, validateImport, validateRulePlugin, validateStoreImport, writeStore,
 } from "./storage.js";
 import {
   createQualityEventMatch, createQualityMatch, createQualityStressRecords, deleteQualityDatabase,
@@ -12,6 +13,9 @@ import {
 
 const byId = (id) => document.getElementById(id);
 const MAX_STORE_BACKUP_BYTES = 200_000_000;
+const MAX_LIBEROS = 2;
+const MAX_ROSTER_PHOTO_BYTES = 25_000_000;
+let photoReadInProgress = false;
 const elements = {
   saveStatus: byId("save-status"),
   history: byId("match-history"),
@@ -57,6 +61,8 @@ const courtChangeSetFields = [1, 2, 3, 4].map((number) => `court-change-set-${nu
 const officialRoles = [
   ["firstReferee", "ファーストレフェリー"],
   ["secondReferee", "セカンドレフェリー"],
+  ["thirdReferee", "サードレフェリー"],
+  ["challengeReferee", "チャレンジレフェリー"],
   ["scorer", "スコアラー"],
   ["assistantScorer", "アシスタントスコアラー"],
   ["lineJudge1", "ラインジャッジ1"],
@@ -1238,7 +1244,7 @@ function renderGymCourtBoard(container, matches) {
 function getRefereePerformance(matches) {
   const referees = new Map();
   const refereeRoles = officialRoles.filter(([role]) =>
-    ["firstReferee", "secondReferee", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"].includes(role));
+    ["firstReferee", "secondReferee", "thirdReferee", "challengeReferee", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"].includes(role));
   for (const match of matches) {
     const assigned = new Set();
     refereeRoles.forEach(([role]) => {
@@ -2544,6 +2550,7 @@ function loadTeamProfile(teamIndex) {
 function renderTeams() {
   const rosterLocked = matchHasStarted();
   currentMatch.teams.forEach((team, index) => {
+    team.players = sortPlayersByNumber(team.players);
     renderTeamCard(elements.teamCards[index], team, index, currentMatch.rules.rosterLimit, rosterLocked);
     elements.teamCards[index].classList.add(index === 0 ? "team-a" : "team-b");
   });
@@ -2561,6 +2568,191 @@ function renderTeams() {
   }
   renderRallyEntryForm();
   renderTeamProfiles();
+  renderRosterPhotoControls(rosterLocked);
+}
+
+function renderRosterPhotoControls(rosterLocked) {
+  const select = byId("roster-photo-team");
+  const previous = select.value;
+  select.replaceChildren();
+  currentMatch.teams.forEach((team, index) => {
+    select.append(new Option(team.name || `チーム ${index === 0 ? "A" : "B"}`, team.id));
+  });
+  if (currentMatch.teams.some((team) => team.id === previous)) select.value = previous;
+  select.disabled = rosterLocked || photoReadInProgress;
+  byId("roster-photo-file").disabled = rosterLocked || photoReadInProgress;
+  byId("roster-photo-read").disabled = rosterLocked || photoReadInProgress || !byId("roster-photo-file").files?.length;
+  byId("roster-photo-camera").disabled = rosterLocked || photoReadInProgress;
+  byId("roster-photo-register").disabled = rosterLocked;
+}
+
+function appendPhotoRow(row = {}) {
+  const tr = document.createElement("tr");
+  const cell = (child) => { const td = document.createElement("td"); td.append(child); tr.append(td); return td; };
+  const include = document.createElement("input");
+  include.type = "checkbox";
+  include.checked = true;
+  include.setAttribute("aria-label", "この行を登録する");
+  include.dataset.photoField = "include";
+  const number = document.createElement("input");
+  number.type = "text";
+  number.inputMode = "numeric";
+  number.maxLength = 3;
+  number.value = row.number || "";
+  number.setAttribute("aria-label", "背番号");
+  number.dataset.photoField = "number";
+  const name = document.createElement("input");
+  name.type = "text";
+  name.maxLength = 60;
+  name.value = row.name || "";
+  name.setAttribute("aria-label", "氏名");
+  name.dataset.photoField = "name";
+  const captain = document.createElement("input");
+  captain.type = "checkbox";
+  captain.checked = Boolean(row.isCaptain);
+  captain.setAttribute("aria-label", "キャプテン(C)");
+  captain.dataset.photoField = "captain";
+  const libero = document.createElement("input");
+  libero.type = "checkbox";
+  libero.checked = Boolean(row.isLibero);
+  libero.setAttribute("aria-label", "リベロ(L)");
+  libero.dataset.photoField = "libero";
+  const position = document.createElement("select");
+  position.setAttribute("aria-label", "ポジション");
+  position.dataset.photoField = "position";
+  position.append(new Option("未設定", ""));
+  for (const [code, label] of PLAYER_POSITIONS) position.append(new Option(`${label}（${code}）`, code));
+  position.value = row.position || "";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "remove-player";
+  remove.textContent = "×";
+  remove.setAttribute("aria-label", "この行を削除");
+  remove.addEventListener("click", () => tr.remove());
+  [include, number, name, captain, libero, position, remove].forEach(cell);
+  byId("roster-photo-rows").append(tr);
+}
+
+function readPhotoRows() {
+  return [...byId("roster-photo-rows").querySelectorAll("tr")].map((tr) => {
+    const field = (key) => tr.querySelector(`[data-photo-field="${key}"]`);
+    return {
+      include: field("include").checked,
+      number: field("number").value.trim(),
+      name: field("name").value.trim(),
+      isCaptain: field("captain").checked,
+      isLibero: field("libero").checked,
+      position: field("position").value,
+    };
+  });
+}
+
+function resetPhotoImport() {
+  byId("roster-photo-rows").replaceChildren();
+  byId("roster-photo-result").hidden = true;
+  byId("roster-photo-file").value = "";
+  byId("roster-photo-read").disabled = true;
+}
+
+async function readRosterPhoto(file = byId("roster-photo-file").files?.[0]) {
+  const status = byId("roster-photo-status");
+  if (!file || photoReadInProgress) return;
+  if (!file.type.startsWith("image/") || file.size > MAX_ROSTER_PHOTO_BYTES) {
+    status.textContent = "画像ファイル（25MB以下）を選択してください。";
+    return;
+  }
+  photoReadInProgress = true;
+  renderRosterPhotoControls(matchHasStarted());
+  byId("roster-photo-result").hidden = true;
+  status.textContent = "読み取りを準備しています…";
+  try {
+    const text = await recognizeRosterImage(file, (message) => {
+      if (message.status) {
+        const percent = typeof message.progress === "number" ? ` ${Math.round(message.progress * 100)}%` : "";
+        status.textContent = `${message.status}${percent}`;
+      }
+    });
+    const { rows, skipped } = parseRosterText(text);
+    byId("roster-photo-rows").replaceChildren();
+    rows.slice(0, 60).forEach(appendPhotoRow);
+    if (!rows.length) {
+      status.textContent = "選手を読み取れませんでした。明るい場所で、表全体が正面から写るように撮影し直すか、下の「行を追加」で入力してください。";
+      appendPhotoRow();
+    } else {
+      status.textContent = `${rows.length}件を読み取りました${skipped ? `（認識できなかった行 ${skipped}件）` : ""}。内容を確認・修正してから「選択した選手を登録」を押してください。`;
+    }
+    byId("roster-photo-result").hidden = false;
+  } catch (error) {
+    console.error(error);
+    status.textContent = `読み取りに失敗しました。${error?.message || ""} 手入力でも登録できます。`;
+  } finally {
+    photoReadInProgress = false;
+    renderRosterPhotoControls(matchHasStarted());
+  }
+}
+
+function registerPhotoPlayers() {
+  if (matchHasStarted()) {
+    showError("試合記録開始後は選手登録を変更できません。試合開始前に修正してください。");
+    return;
+  }
+  const team = getTeam(byId("roster-photo-team").value);
+  const selected = readPhotoRows().filter((row) => row.include);
+  const errors = [];
+  if (!selected.length) errors.push("登録する行を選択してください。");
+  const numbers = new Set(team.players.map((player) => player.number));
+  for (const row of selected) {
+    const label = row.number ? `#${row.number}` : "背番号なし";
+    if (!/^\d{1,3}$/.test(row.number) || !row.name) errors.push(`${label}: 背番号（1〜3桁）と氏名を入力してください。`);
+    else if (numbers.has(row.number)) errors.push(`${label}: 背番号が重複しています。`);
+    numbers.add(row.number);
+  }
+  if (team.players.length + selected.length > currentMatch.rules.rosterLimit) {
+    errors.push(`登録できる選手数の上限（${currentMatch.rules.rosterLimit}名）を超えます。`);
+  }
+  if (team.players.filter((player) => player.isLibero).length + selected.filter((row) => row.isLibero).length > MAX_LIBEROS) {
+    errors.push(`リベロは${MAX_LIBEROS}人まで登録できます。`);
+  }
+  if (selected.filter((row) => row.isCaptain).length > 1) errors.push("キャプテンは1人だけ選択してください。");
+  if (errors.length) {
+    byId("roster-photo-status").textContent = errors.slice(0, 6).join(" / ");
+    showError("写真からの登録内容に問題があります。内容を修正してください。");
+    return;
+  }
+  const added = selected.map((row) => ({
+    id: createId(),
+    number: row.number,
+    name: row.name.slice(0, 60),
+    isCaptain: row.isCaptain,
+    isLibero: row.isLibero,
+    position: row.position,
+  }));
+  if (added.some((player) => player.isCaptain)) team.players.forEach((player) => { player.isCaptain = false; });
+  team.players.push(...added);
+  recordAudit("add", "選手登録（写真）", `${team.name} ${added.length}名`);
+  byId("roster-photo-status").textContent = `${added.length}名を登録しました。`;
+  resetPhotoImport();
+  clearError();
+  render();
+  scheduleSave(true);
+}
+
+function bindRosterPhotoImport() {
+  byId("roster-photo-file").addEventListener("change", () => renderRosterPhotoControls(matchHasStarted()));
+  byId("roster-photo-read").addEventListener("click", () => readRosterPhoto());
+  const cameraInput = byId("roster-photo-camera-file");
+  byId("roster-photo-camera").addEventListener("click", () => cameraInput.click());
+  cameraInput.addEventListener("change", () => {
+    const file = cameraInput.files?.[0];
+    cameraInput.value = "";
+    if (file) readRosterPhoto(file);
+  });
+  byId("roster-photo-add-row").addEventListener("click", () => appendPhotoRow());
+  byId("roster-photo-register").addEventListener("click", registerPhotoPlayers);
+  byId("roster-photo-discard").addEventListener("click", () => {
+    resetPhotoImport();
+    byId("roster-photo-status").textContent = "読み取り結果を破棄しました。";
+  });
 }
 
 function renderScoreboard() {
@@ -3616,11 +3808,14 @@ function renderSubstitutionMonitors() {
     const warning = remaining === 0 ? "（上限）" : remaining === 1 ? "（残り1回）" : "";
     standardLines.push(`${team.name}: ${substitutions}/${currentMatch.rules.substitutionLimit}回 ${warning}`);
     const liberoSubs = getSetSubstitutionCount(currentSet(), team.id, "libero-substitution");
-    const libero = team.players.find((player) => player.isLibero);
-    const active = libero && getCurrentLineup(currentMatch, currentSet(), team.id).includes(libero.id);
+    const liberos = team.players.filter((player) => player.isLibero);
+    const lineup = getCurrentLineup(currentMatch, currentSet(), team.id);
+    const liberoText = liberos.length
+      ? liberos.map((libero) => `${libero.name}${lineup.includes(libero.id) ? "（コート内）" : "（コート外）"}`).join("、")
+      : "リベロ未登録";
     const last = [...currentSet().events].reverse().find((event) => event.type === "libero-substitution" && event.teamId === team.id);
     const lastLine = last ? ` / 直近: ${last.playerOut || "—"} → ${last.playerIn || "—"}` : "";
-    liberoLines.push(`${team.name}: ${liberoSubs}回${libero ? ` / ${libero.name}${active ? "（コート内）" : "（コート外）"}` : " / リベロ未登録"}${lastLine}`);
+    liberoLines.push(`${team.name}: ${liberoSubs}回 / ${liberoText}${lastLine}`);
   }
   byId("substitution-monitor").textContent = standardLines.join("　・　");
   byId("substitution-monitor").classList.toggle("is-warning", currentMatch.teams.some((team) =>
@@ -5179,8 +5374,8 @@ function renderPrintableScoreSheet() {
   appendCompletedSetReports(matchDocument);
 
   appendPrintTeamColumns(matchDocument, "チーム構成・登録選手", currentMatch.teams,
-    (team) => team.players.map((player) => [
-      player.number, player.name, player.isCaptain ? "キャプテン" : player.isLibero ? "リベロ" : "選手",
+    (team) => sortPlayersByNumber(team.players).map((player) => [
+      player.number, player.name, describePlayerRole(player),
     ]), ["背番号", "氏名", "役割"]);
 
   const statsHeading = document.createElement("h2");
@@ -5257,8 +5452,8 @@ function renderPrintableScoreSheet() {
   rosterDocument.className = "print-document";
   rosterDocument.dataset.printDocument = "roster";
   appendPrintTeamColumns(rosterDocument, "メンバー表", currentMatch.teams,
-    (team) => team.players.map((player) => [
-      player.number, player.name, player.isCaptain ? "キャプテン" : player.isLibero ? "リベロ" : "選手",
+    (team) => sortPlayersByNumber(team.players).map((player) => [
+      player.number, player.name, describePlayerRole(player),
     ]), ["背番号", "氏名", "役割"]);
 
   const setsDocument = document.createElement("section");
@@ -6670,6 +6865,7 @@ function addPlayer(form) {
   const name = inputs[1]?.value.trim();
   const captain = inputs[2]?.checked || false;
   const libero = inputs[3]?.checked || false;
+  const position = form.querySelector('select[name="position"]')?.value || "";
   if (!name || !/^\d{1,3}$/.test(number)) {
     showError("選手の背番号（1〜3桁）と氏名を入力してください。");
     return;
@@ -6682,15 +6878,11 @@ function addPlayer(form) {
     showError(`1チームに登録できる選手数の上限（${currentMatch.rules.rosterLimit}名）に達しています。`);
     return;
   }
-  if (team.players.some((player) => player.isLibero) && libero) {
-    showError("リベロは1人まで登録できます。既存のリベロを解除してから追加してください。");
+  if (libero && team.players.filter((player) => player.isLibero).length >= MAX_LIBEROS) {
+    showError(`リベロは${MAX_LIBEROS}人まで登録できます。`);
     return;
   }
-  if (captain && libero) {
-    showError("キャプテンとリベロは同時に設定できません。");
-    return;
-  }
-  const player = { id: createId(), number, name: name.slice(0, 60), isCaptain: captain, isLibero: libero };
+  const player = { id: createId(), number, name: name.slice(0, 60), isCaptain: captain, isLibero: libero, position };
   team.players.push(player);
   if (captain) team.players.filter((player) => player.id !== team.players.at(-1).id).forEach((player) => { player.isCaptain = false; });
   recordAudit("add", "選手登録", `${team.name} #${player.number} ${player.name}`);
@@ -7197,6 +7389,8 @@ function bindEvents() {
     }
   });
 
+  bindRosterPhotoImport();
+  byId("app-version").textContent = self.APP_VERSION || "不明";
   document.addEventListener("submit", (event) => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || !form.matches("[data-add-player]")) return;
@@ -7450,6 +7644,10 @@ function bindEvents() {
     }
     if (lineup.includes(incoming.id)) {
       showError("入る選手は現在コート外にいる選手を指定してください。");
+      return;
+    }
+    if (incoming.isLibero && team.players.some((player) => player.isLibero && player.id !== outgoing.id && lineup.includes(player.id))) {
+      showError("コート内にリベロは1名までです。");
       return;
     }
     addEvent({

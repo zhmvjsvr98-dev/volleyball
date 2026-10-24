@@ -1290,3 +1290,10 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   .content-panel, .panel { break-inside: avoid; border: 1px solid #777; background: #fff; color: #111; }
   .data-table th, .data-table td { border-color: #777; color: #111; background: #fff; }
 }
+
+.roster-photo-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.roster-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.roster-photo-panel .roster-table input[type="text"] { min-width: 4rem; width: 100%; }
+.roster-photo-panel .roster-table-wrap { overflow-x: auto; }
+
+.app-version { margin: 8px 0 0; font-size: 0.8rem; opacity: 0.7; }
