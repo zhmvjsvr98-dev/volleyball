@@ -4,7 +4,7 @@ import {
 } from "./score.js";
 import { parseRosterText, recognizeRosterImage } from "./roster-import.js";
 import {
-  buildStore, createEmptyMatch, createId, describePlayerRole, MAX_MATCHES, PLAYER_POSITIONS, readStore, sortPlayersByNumber, UNIFORM_COLOR_PRESETS, validateImport, validateRulePlugin, validateStoreImport, writeStore,
+  buildStore, createEmptyMatch, createId, createTeamCode, describePlayerRole, MAX_MATCHES, PLAYER_POSITIONS, readStore, sortPlayersByNumber, UNIFORM_COLOR_PRESETS, validateImport, validateRulePlugin, validateStoreImport, writeStore,
 } from "./storage.js";
 import {
   createQualityEventMatch, createQualityMatch, createQualityStressRecords, deleteQualityDatabase,
@@ -679,8 +679,10 @@ function populateForm() {
   byId("rotation-enabled").disabled = locked || currentMatch.rules.matchProfile !== "six" || currentMatch.rules.category === "小学生";
   byId("team-name-setup-a").value = currentMatch.teams[0].name;
   byId("team-name-setup-b").value = currentMatch.teams[1].name;
-  byId("team-code-a").value = currentMatch.teams[0].code || "";
-  byId("team-code-b").value = currentMatch.teams[1].code || "";
+  currentMatch.teams.forEach((team, index) => {
+    if (!team.code) team.code = createTeamCode(team.name);
+    byId(index === 0 ? "team-code-a" : "team-code-b").value = team.code;
+  });
   byId("team-color-setup-a").value = currentMatch.teams[0].uniformColor || "#1d4ed8";
   byId("team-color-setup-b").value = currentMatch.teams[1].uniformColor || "#f97316";
   byId("team-libero-color-setup-a").value = currentMatch.teams[0].liberoUniformColor || "#facc15";
@@ -2542,10 +2544,7 @@ function saveTeamProfile(teamIndex) {
   if (matchHasStarted()) return showError("試合開始後はチーム履歴を変更できません。");
   const team = currentMatch.teams[teamIndex];
   const codeInput = byId(teamIndex === 0 ? "team-code-a" : "team-code-b");
-  const code = codeInput.value.trim().toUpperCase();
-  if (code && !/^[A-Z0-9_-]{1,30}$/.test(code)) {
-    return showError("チームコードは半角英数字、ハイフン、アンダースコアで30文字以内にしてください。");
-  }
+  const code = team.code || createTeamCode(team.name);
   if (code && currentMatch.teams.some((other, index) => index !== teamIndex && other.code === code)) {
     return showError("同じ試合の両チームに同じチームコードは設定できません。");
   }
@@ -7002,14 +7001,15 @@ function addPlayer(form) {
     return;
   }
   const team = getTeam(form.dataset.addPlayer);
-  const inputs = form.querySelectorAll('input');
-  const number = inputs[0]?.value.trim();
-  const name = inputs[1]?.value.trim();
-  const captain = inputs[2]?.checked || false;
-  const libero = inputs[3]?.checked || false;
+  const number = form.querySelector('input[type="number"]')?.value.trim();
+  const surname = form.elements.namedItem("surname")?.value.trim();
+  const givenName = form.elements.namedItem("givenName")?.value.trim();
+  const name = [surname, givenName].filter(Boolean).join(" ");
+  const captain = form.elements.namedItem("captain")?.checked || false;
+  const libero = form.elements.namedItem("libero")?.checked || false;
   const position = form.querySelector('select[name="position"]')?.value || "";
-  if (!name || !/^\d{1,3}$/.test(number)) {
-    showError("選手の背番号（1〜3桁）と氏名を入力してください。");
+  if (!surname || !givenName || name.length > 60 || !/^\d{1,3}$/.test(number)) {
+    showError("背番号（1〜3桁）、苗字、名前を入力してください。");
     return;
   }
   if (team.players.some((player) => player.number === number)) {
@@ -7445,27 +7445,6 @@ function bindEvents() {
   byId("delete-team-history-b").addEventListener("click", () => deleteTeamProfile(1));
   byId("clear-team-history").addEventListener("click", clearTeamHistory);
   byId("clear-match-history").addEventListener("click", clearMatchHistory);
-  for (const [id, teamIndex] of [["team-code-a", 0], ["team-code-b", 1]]) {
-    byId(id).addEventListener("change", (event) => {
-      if (matchHasStarted()) return showError("試合開始後はチームコードを変更できません。");
-      const code = event.target.value.trim().toUpperCase();
-      if (code && !/^[A-Z0-9_-]{1,30}$/.test(code)) {
-        showError("チームコードは半角英数字、ハイフン、アンダースコアで30文字以内にしてください。");
-        event.target.value = currentMatch.teams[teamIndex].code || "";
-        return;
-      }
-      if (code && currentMatch.teams.some((team, index) => index !== teamIndex && team.code === code)) {
-        showError("同じ試合の両チームに同じチームコードは設定できません。");
-        event.target.value = currentMatch.teams[teamIndex].code || "";
-        return;
-      }
-      event.target.value = code;
-      currentMatch.teams[teamIndex].code = code;
-      clearError();
-      renderSeasonStats();
-      scheduleSave(true);
-    });
-  }
   byId("prestart-initial-server").addEventListener("change", () => {
     if (matchHasStarted()) return;
     currentMatch.sets[0].initialServiceTeamId = byId("prestart-initial-server").value;
@@ -7569,7 +7548,10 @@ function bindEvents() {
 
   for (const [id, index] of [["team-name-setup-a", 0], ["team-name-setup-b", 1]]) {
     byId(id).addEventListener("input", (event) => {
-      currentMatch.teams[index].name = event.target.value.slice(0, 60);
+      const team = currentMatch.teams[index];
+      team.name = event.target.value.slice(0, 60);
+      team.code = createTeamCode(team.name);
+      byId(index === 0 ? "team-code-a" : "team-code-b").value = team.code;
       renderTeams();
       renderScoreboard();
       renderTimeouts();
@@ -7584,8 +7566,11 @@ function bindEvents() {
       if (!input) return;
       const team = getTeam(input.dataset.teamName);
       team.name = input.value.trim().slice(0, 60) || "チーム";
+      team.code = createTeamCode(team.name);
       input.value = team.name;
-      byId(team === currentMatch.teams[0] ? "team-name-setup-a" : "team-name-setup-b").value = team.name;
+      const teamIndex = currentMatch.teams.indexOf(team);
+      byId(teamIndex === 0 ? "team-name-setup-a" : "team-name-setup-b").value = team.name;
+      byId(teamIndex === 0 ? "team-code-a" : "team-code-b").value = team.code;
       renderScoreboard();
       renderTimeouts();
       renderSetStrip();

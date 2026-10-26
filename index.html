@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=59">
+  <link rel="stylesheet" href="./style.css?v=60">
   <script src="./version.js"></script>
   <script type="module" src="./app.js"></script>
 </head>
@@ -203,12 +203,12 @@
               <figcaption><b>画面イメージ 3</b> 登録選手とコート配置（選手名・位置は例）</figcaption>
             </figure>
             <ol class="manual-instructions">
-              <li>「メンバー登録」で、チームごとに背番号と氏名を入力して<strong>「選手を追加」</strong>を押します。試合に出る選手を登録し、キャプテンにはチェックを付けます。</li>
+              <li>「メンバー登録」で、チームごとに背番号と苗字・名前を入力して<strong>「選手を追加」</strong>を押します。登録後は苗字と名前の間に空白を入れた氏名で表示されます。試合に出る選手を登録し、キャプテンにはチェックを付けます。</li>
               <li>役割は、キャプテン（C）・リベロ（L・1チーム2名まで、キャプテンと兼任可）に加え、ポジション（OH／MB／S／OP）を選べます。コート内のリベロは1名までです。</li>
               <li>選手・リベロのユニフォーム色は、色名の一覧から素早く選べます。一覧にない色は隣のカラーピッカーで指定できます。</li>
               <li><b>写真から一括登録（任意）：</b>名簿の写真がある場合は、ページ下部の「写真からメンバーを一括登録」を使います。</li>
               <li>登録先チームを選び、次のどちらかで写真を指定します。<br>・<strong>「撮影して読み取る」</strong>：スマートフォン・タブレットでカメラが起動します。撮影して「使用」を押すと、そのまま読み取りが始まります（パソコンでは通常のファイル選択になります）。<br>・<strong>「ファイルを選択」→「写真を読み取る」</strong>：撮影済みの写真やファイルから選びます。</li>
-              <li>明るさ・コントラストを補正した画像と元画像の両方を読み取り、結果の表を表示します。背番号・氏名・C・L・ポジションを修正し、不要な行は「×」で削除、足りない選手は「行を追加」で入力します。読み取り方法を増やしても誤認識は起こるため、登録前に必ず照合してください。</li>
+              <li>明るさ・コントラストを補正した画像と元画像の両方を読み取り、結果の表を表示します。背番号・氏名・C・L・ポジションを修正し、不要な行は「×」で削除、足りない選手は「行を追加」で入力します。写真読み取りでは氏名全体を修正し、手入力では苗字・名前を分けて入力します。読み取り方法を増やしても誤認識は起こるため、登録前に必ず照合してください。</li>
               <li>登録しない行は「登録」のチェックを外し、<strong>「選択した選手を登録」</strong>を押します。背番号の重複、人数上限、リベロ3名以上、キャプテン複数などがあると、1名も登録されずに理由が表示されます。直してからもう一度押してください。</li>
               <li>撮影のコツ：明るい場所で、表全体を正面から撮影します。影・反射・斜めを避け、1行に「背番号 氏名」の順で並ぶ名簿が最も読み取りやすくなります。手書きは誤読が増えるため、必ず確認してください。</li>
               <li>写真は端末内だけで処理し、保存や送信はしません。初回は読み取り用データ（約6MB）を読み込むため、通信が必要です。読み取りに失敗した場合は手入力で登録できます。試合記録の開始後は登録できません。</li>
@@ -394,7 +394,7 @@
             <ol class="manual-instructions">
               <li>「大会管理・試合設定」の「初期テンプレート」で、標準、高校男子/女子、中学男子/女子、ビーチから近い条件を選びます。テンプレートを選ぶと競技条件の入力欄が更新されます。適用後に大会要項と照合し、セット数・目標点・点差・交代/タイムアウト上限・ローテーション設定を確認してください。</li>
               <li>大会固有の条件を繰り返し使う場合は、「ローカルルールを画面から登録」を開き、設定名と競技条件を入力して登録します。登録後は「適用するルール設定」から選びます。別端末への移行は、選択中の設定をファイル出力し、移行先で設定ファイルを読み込みます。</li>
-              <li>「メンバー登録」では背番号・氏名・キャプテン等を入力します。チームごとにチームコードを設定して履歴を保存すると、次の試合で「履歴 / コードで読み込む」から再利用できます。チームコードは大会をまたいだチーム識別に使用するため、同じチームには同じコードを使います。</li>
+              <li>「メンバー登録」では背番号・苗字・名前・キャプテン等を入力します。通常の選手登録では苗字と名前を別々に入力し、登録後は間に空白を入れた氏名として扱います。チーム名から自動作成されるチームコードと一緒に履歴を保存すると、次の試合で「履歴 / コードで読み込む」から再利用できます。チーム名を変えるとコードも変わるため、同じチームには同じチーム名を使ってください。</li>
               <li>履歴の読み込み後は、当日の登録選手、背番号、キャプテン、ユニフォーム色が最新か確認します。ユニフォーム色は色名の選択肢から設定でき、細かな色は隣のカラーピッカーで選べます。過去のメンバーが自動で現在の大会登録と一致するとは限りません。</li>
               <li>試合設定・メンバー・ローテーション・審判登録を順に確認したら「開始確認」を開きます。必要項目が未確認の場合は、チェックに表示された画面へ戻って修正します。開始確認後に試合を開始すると、試合条件や登録情報の編集が制限されます。</li>
             </ol>
@@ -680,17 +680,17 @@
         </section>
         <section class="panel content-panel">
           <div class="section-heading"><div><span class="eyebrow">TEAM & ROSTER HISTORY</span><h2>チーム・メンバー履歴</h2></div></div>
-          <p class="notice">チームコードを付けて選手・キャプテン・サーブ順・スタッフ情報を端末に保存し、次の対戦設定へコードで呼び出せます。登録内容の変更履歴は別の履歴として残ります。</p>
+          <p class="notice">チーム名から自動作成されるチームコードと一緒に、選手・キャプテン・サーブ順・スタッフ情報を端末に保存します。チーム名を変えるとコードも変わるため、履歴や大会で同じチームとして扱う場合は同じチーム名を使ってください。同名チームは同じコードになります。登録内容の変更履歴は別の履歴として残ります。</p>
           <div class="team-history-grid">
             <div class="team-history-card">
               <h3>チームA</h3>
-              <label class="field">チームコード<input id="team-code-a" maxlength="30" autocomplete="off" placeholder="例: NARA-HS"></label>
+              <label class="field">自動作成されたチームコード<input id="team-code-a" maxlength="30" autocomplete="off" readonly></label>
               <label class="field">保存済みチーム履歴<select id="team-history-a"></select></label>
               <div class="output-actions"><button id="save-team-history-a" class="button button-secondary" type="button">チームA履歴をコード付き保存</button><button id="load-team-history-a" class="button button-primary" type="button">履歴 / コードで読み込む</button><button id="delete-team-history-a" class="button button-quiet danger-quiet" type="button">履歴を削除</button></div>
             </div>
             <div class="team-history-card">
               <h3>チームB</h3>
-              <label class="field">チームコード<input id="team-code-b" maxlength="30" autocomplete="off" placeholder="例: OSAKA-HS"></label>
+              <label class="field">自動作成されたチームコード<input id="team-code-b" maxlength="30" autocomplete="off" readonly></label>
               <label class="field">保存済みチーム履歴<select id="team-history-b"></select></label>
               <div class="output-actions"><button id="save-team-history-b" class="button button-secondary" type="button">チームB履歴をコード付き保存</button><button id="load-team-history-b" class="button button-primary" type="button">履歴 / コードで読み込む</button><button id="delete-team-history-b" class="button button-quiet danger-quiet" type="button">履歴を削除</button></div>
             </div>

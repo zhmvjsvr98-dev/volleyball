@@ -11,6 +11,17 @@ export function sortPlayersByNumber(players) {
   return [...players].sort((a, b) => value(a) - value(b));
 }
 
+export function createTeamCode(name) {
+  const normalizedName = String(name || "").normalize("NFKC").trim().toLocaleLowerCase("ja-JP").replace(/\s+/g, " ");
+  if (!normalizedName) return "";
+  let hash = 14695981039346656037n;
+  for (const byte of new TextEncoder().encode(normalizedName)) {
+    hash ^= BigInt(byte);
+    hash = BigInt.asUintN(64, hash * 1099511628211n);
+  }
+  return `T-${hash.toString(36).toUpperCase()}`;
+}
+
 export const PLAYER_POSITIONS = [
   ["OH", "アウトサイドヒッター"],
   ["MB", "ミドルブロッカー"],
