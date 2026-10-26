@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=54">
+  <link rel="stylesheet" href="./style.css?v=59">
   <script src="./version.js"></script>
   <script type="module" src="./app.js"></script>
 </head>
@@ -182,9 +182,9 @@
             <ol class="manual-instructions">
               <li>大会名、試合日、会場名・住所、コート、試合番号、ラウンドを入力します。試合開始時に未入力があると、画面に不足項目が表示されます。</li>
               <li>競技形式、カテゴリー、種別、3セットまたは5セットの試合方式を、大会要項どおりに選びます。小学生6人制はローテーションなしの専用形式を選択できます。</li>
-              <li>セット数や競技形式を選ぶと標準目標点が自動入力されます。ソフトバレーは15点から2点差、または17点到達まで続きます。</li>
+              <li>セット数や競技形式を選ぶと標準目標点が自動入力されます。3セットマッチでは第4・第5セットの目標点欄と対象外のコートチェンジ欄は表示されません。ソフトバレーは15点から2点差、または17点到達まで続きます。</li>
               <li>セット終了後にコートチェンジするセットを選びます。決定セット中の規定点でのコートチェンジとは別に設定します。</li>
-              <li>チームA・チームBの名前を入力します。Aは青、Bはオレンジで表示されます。</li>
+              <li>チームA・チームBの名前を入力します。ユニフォーム色は色名の一覧から選ぶか、カラーピッカーで細かく指定できます。Aは青、Bはオレンジが初期色です。</li>
               <li>入力内容は自動保存されます。確認できたら画面上部の<strong>「次へ: 02 メンバー登録」</strong>を押します。</li>
             </ol>
             <p class="manual-tip"><b>確認ポイント</b> 目標点やセット数が大会要項と異なると、セット終了の判定も変わります。試合を始める前に確認してください。</p>
@@ -205,9 +205,10 @@
             <ol class="manual-instructions">
               <li>「メンバー登録」で、チームごとに背番号と氏名を入力して<strong>「選手を追加」</strong>を押します。試合に出る選手を登録し、キャプテンにはチェックを付けます。</li>
               <li>役割は、キャプテン（C）・リベロ（L・1チーム2名まで、キャプテンと兼任可）に加え、ポジション（OH／MB／S／OP）を選べます。コート内のリベロは1名までです。</li>
+              <li>選手・リベロのユニフォーム色は、色名の一覧から素早く選べます。一覧にない色は隣のカラーピッカーで指定できます。</li>
               <li><b>写真から一括登録（任意）：</b>名簿の写真がある場合は、ページ下部の「写真からメンバーを一括登録」を使います。</li>
               <li>登録先チームを選び、次のどちらかで写真を指定します。<br>・<strong>「撮影して読み取る」</strong>：スマートフォン・タブレットでカメラが起動します。撮影して「使用」を押すと、そのまま読み取りが始まります（パソコンでは通常のファイル選択になります）。<br>・<strong>「ファイルを選択」→「写真を読み取る」</strong>：撮影済みの写真やファイルから選びます。</li>
-              <li>読み取り結果は表に表示されます。背番号・氏名・C・L・ポジションを修正し、不要な行は「×」で削除、足りない選手は「行を追加」で入力します。</li>
+              <li>明るさ・コントラストを補正した画像と元画像の両方を読み取り、結果の表を表示します。背番号・氏名・C・L・ポジションを修正し、不要な行は「×」で削除、足りない選手は「行を追加」で入力します。読み取り方法を増やしても誤認識は起こるため、登録前に必ず照合してください。</li>
               <li>登録しない行は「登録」のチェックを外し、<strong>「選択した選手を登録」</strong>を押します。背番号の重複、人数上限、リベロ3名以上、キャプテン複数などがあると、1名も登録されずに理由が表示されます。直してからもう一度押してください。</li>
               <li>撮影のコツ：明るい場所で、表全体を正面から撮影します。影・反射・斜めを避け、1行に「背番号 氏名」の順で並ぶ名簿が最も読み取りやすくなります。手書きは誤読が増えるため、必ず確認してください。</li>
               <li>写真は端末内だけで処理し、保存や送信はしません。初回は読み取り用データ（約6MB）を読み込むため、通信が必要です。読み取りに失敗した場合は手入力で登録できます。試合記録の開始後は登録できません。</li>
@@ -392,9 +393,9 @@
             <div class="manual-section-heading"><span class="manual-step">13</span><div><h3>試合設定テンプレートとチーム履歴を使う</h3><p>繰り返し利用する競技条件やチーム情報を準備し、入力ミスを減らします。</p></div></div>
             <ol class="manual-instructions">
               <li>「大会管理・試合設定」の「初期テンプレート」で、標準、高校男子/女子、中学男子/女子、ビーチから近い条件を選びます。テンプレートを選ぶと競技条件の入力欄が更新されます。適用後に大会要項と照合し、セット数・目標点・点差・交代/タイムアウト上限・ローテーション設定を確認してください。</li>
-              <li>大会固有の条件を繰り返し使う場合は、「ローカルルールJSONを登録」に許可された設定値を入力し、「JSON設定を登録」を押します。登録後は「適用するルール設定」から選びます。設定は端末内に保存され、必要なら選択中の設定をJSON出力できます。任意のプログラムや大会要項ファイルを読み込む機能ではありません。</li>
+              <li>大会固有の条件を繰り返し使う場合は、「ローカルルールを画面から登録」を開き、設定名と競技条件を入力して登録します。登録後は「適用するルール設定」から選びます。別端末への移行は、選択中の設定をファイル出力し、移行先で設定ファイルを読み込みます。</li>
               <li>「メンバー登録」では背番号・氏名・キャプテン等を入力します。チームごとにチームコードを設定して履歴を保存すると、次の試合で「履歴 / コードで読み込む」から再利用できます。チームコードは大会をまたいだチーム識別に使用するため、同じチームには同じコードを使います。</li>
-              <li>履歴の読み込み後は、当日の登録選手、背番号、キャプテン、ユニフォーム色が最新か確認します。過去のメンバーが自動で現在の大会登録と一致するとは限りません。</li>
+              <li>履歴の読み込み後は、当日の登録選手、背番号、キャプテン、ユニフォーム色が最新か確認します。ユニフォーム色は色名の選択肢から設定でき、細かな色は隣のカラーピッカーで選べます。過去のメンバーが自動で現在の大会登録と一致するとは限りません。</li>
               <li>試合設定・メンバー・ローテーション・審判登録を順に確認したら「開始確認」を開きます。必要項目が未確認の場合は、チェックに表示された画面へ戻って修正します。開始確認後に試合を開始すると、試合条件や登録情報の編集が制限されます。</li>
             </ol>
             <p class="manual-tip"><b>ローカルルールの注意：</b>テンプレートや保存済み設定は入力補助です。大会要項や最新競技規則の確認に代わるものではありません。目標点等を変更した場合は、両チームと記録担当者で開始前に共有してください。</p>
@@ -470,14 +471,52 @@
             <label class="field" for="rule-plugin-select">適用するルール設定
               <select id="rule-plugin-select"></select>
             </label>
-            <button id="export-rule-plugin" class="button button-secondary" type="button">選択中のローカル設定をJSON出力</button>
+            <button id="export-rule-plugin" class="button button-secondary" type="button">選択中の設定をファイル出力</button>
             <button id="delete-rule-plugin" class="button button-secondary" type="button">選択中のローカル設定を削除</button>
           </div>
           <details class="analysis-panel">
-            <summary>ローカルルールJSONを登録</summary>
-            <p>JSONには許可された競技条件のみ保存します。スクリプトや任意コードは読み込み・実行しません。</p>
-            <label class="field" for="rule-plugin-json">ルール設定JSON<textarea id="rule-plugin-json" rows="7" maxlength="20000" spellcheck="false" placeholder='{"id":"local-example","name":"大会ローカルルール","settings":{"matchProfile":"six","category":"高校","bestOf":3,"regularTarget":25,"finalTarget":15}}'></textarea></label>
-            <button id="import-rule-plugin" class="button button-secondary" type="button">JSON設定を登録</button>
+            <summary>ローカルルールを画面から登録</summary>
+            <p>大会名と競技条件を選択・入力します。設定ファイルの内容は安全のため、許可された項目だけを読み込みます。</p>
+            <div class="rules-grid local-rule-form">
+              <label class="field">設定名<input id="rule-plugin-name" type="text" maxlength="60" placeholder="例：地区大会ルール" autocomplete="off"></label>
+              <label class="field">競技形式
+                <select id="rule-plugin-match-profile">
+                  <option value="six">6人制</option><option value="six-elementary">小学生6人制</option>
+                  <option value="nine">9人制</option><option value="beach">ビーチバレー</option><option value="soft">ソフトバレー</option>
+                </select>
+              </label>
+              <label class="field">カテゴリー
+                <select id="rule-plugin-category">
+                  <option>一般</option><option>大学</option><option>高校</option><option>中学校</option><option>小学生</option><option>マスターズ</option><option>その他</option>
+                </select>
+              </label>
+              <label class="field">種別
+                <select id="rule-plugin-division"><option>男子</option><option>女子</option><option>混合</option><option>その他</option></select>
+              </label>
+              <label class="field">試合方式
+                <select id="rule-plugin-best-of"><option value="3">3セットマッチ</option><option value="5">5セットマッチ</option></select>
+              </label>
+              <label class="field">通常セット目標点<input id="rule-plugin-regular-target" type="number" min="1" max="99" value="25" inputmode="numeric"></label>
+              <label class="field">最終セット目標点<input id="rule-plugin-final-target" type="number" min="1" max="99" value="15" inputmode="numeric"></label>
+              <label class="field">勝利に必要な点差<input id="rule-plugin-win-by" type="number" min="1" max="10" value="2" inputmode="numeric"></label>
+              <label class="field">1セットのタイムアウト上限<input id="rule-plugin-timeout-limit" type="number" min="0" max="10" value="2" inputmode="numeric"></label>
+              <label class="field">1セットの交代上限<input id="rule-plugin-substitution-limit" type="number" min="0" max="30" value="6" inputmode="numeric"></label>
+              <label class="field">登録選手上限 / チーム<input id="rule-plugin-roster-limit" type="number" min="1" max="42" value="30" inputmode="numeric"></label>
+              <label class="field">ウォームアップ（分）<input id="rule-plugin-warmup-minutes" type="number" min="0" max="60" value="10" inputmode="numeric"></label>
+              <label class="field">コートチェンジ間隔（点）<input id="rule-plugin-court-change-interval" type="number" min="0" max="99" value="8" inputmode="numeric"></label>
+              <label class="field">テクニカルタイムアウト発生点 1（無効は0）<input id="rule-plugin-technical-timeout-1" type="number" min="0" max="99" value="0" inputmode="numeric"></label>
+              <label class="field">テクニカルタイムアウト発生点 2（無効は0）<input id="rule-plugin-technical-timeout-2" type="number" min="0" max="99" value="0" inputmode="numeric"></label>
+              <label class="check-setting"><input id="rule-plugin-rotation-enabled" type="checkbox" checked> ローテーションを記録する</label>
+            </div>
+            <div class="local-rule-actions">
+              <button id="save-rule-plugin-form" class="button button-primary" type="button">この条件をローカル設定に登録</button>
+            </div>
+          </details>
+          <details class="analysis-panel local-rule-transfer">
+            <summary>別端末の設定ファイルを読み込む（JSON）</summary>
+            <p>このアプリから出力した設定ファイルを選んで移行します。JSON本文を編集・貼り付ける必要はありません。</p>
+            <label class="field">ローカルルール設定ファイル<input id="rule-plugin-file" type="file" accept="application/json,.json"></label>
+            <button id="import-rule-plugin" class="button button-secondary" type="button">設定ファイルを読み込む</button>
           </details>
         </section>
         <section class="panel content-panel">
@@ -578,15 +617,27 @@
           <div class="setup-team">
             <label class="field">チームA<input id="team-name-setup-a" maxlength="60" placeholder="チーム名を入力"></label>
             <div class="setup-team-colors">
-              <label class="field">選手ユニフォーム色<input id="team-color-setup-a" type="color" aria-label="チームAの選手ユニフォーム色"></label>
-              <label class="field">リベロユニフォーム色<input id="team-libero-color-setup-a" type="color" aria-label="チームAのリベロユニフォーム色"></label>
+              <label class="field">選手ユニフォーム色
+                <select id="team-color-preset-setup-a" data-team-color-preset="true" data-team-color-role="players" aria-label="チームAの選手ユニフォーム色の簡単選択"></select>
+                <input id="team-color-setup-a" type="color" aria-label="チームAの選手ユニフォーム色（詳細選択）">
+              </label>
+              <label class="field">リベロユニフォーム色
+                <select id="team-libero-color-preset-setup-a" data-team-color-preset="true" data-team-color-role="libero" aria-label="チームAのリベロユニフォーム色の簡単選択"></select>
+                <input id="team-libero-color-setup-a" type="color" aria-label="チームAのリベロユニフォーム色（詳細選択）">
+              </label>
             </div>
           </div>
           <div class="setup-team">
             <label class="field">チームB<input id="team-name-setup-b" maxlength="60" placeholder="チーム名を入力"></label>
             <div class="setup-team-colors">
-              <label class="field">選手ユニフォーム色<input id="team-color-setup-b" type="color" aria-label="チームBの選手ユニフォーム色"></label>
-              <label class="field">リベロユニフォーム色<input id="team-libero-color-setup-b" type="color" aria-label="チームBのリベロユニフォーム色"></label>
+              <label class="field">選手ユニフォーム色
+                <select id="team-color-preset-setup-b" data-team-color-preset="true" data-team-color-role="players" aria-label="チームBの選手ユニフォーム色の簡単選択"></select>
+                <input id="team-color-setup-b" type="color" aria-label="チームBの選手ユニフォーム色（詳細選択）">
+              </label>
+              <label class="field">リベロユニフォーム色
+                <select id="team-libero-color-preset-setup-b" data-team-color-preset="true" data-team-color-role="libero" aria-label="チームBのリベロユニフォーム色の簡単選択"></select>
+                <input id="team-libero-color-setup-b" type="color" aria-label="チームBのリベロユニフォーム色（詳細選択）">
+              </label>
             </div>
           </div>
         </section>
@@ -606,7 +657,7 @@
         </section>
         <section class="panel content-panel roster-photo-panel">
           <div class="section-heading"><div><span class="eyebrow">PHOTO IMPORT</span><h2>写真からメンバーを一括登録</h2></div></div>
-          <p class="notice">メンバー表・名簿の写真から背番号と氏名を読み取ります。写真は端末内だけで処理し、保存や送信はしません。読み取り結果は誤りが出やすいため、必ず確認・修正してから登録してください。初回は読み取り用データ（約6MB）の読み込みに時間がかかります。</p>
+          <p class="notice">メンバー表・名簿の写真から背番号と氏名を読み取ります。元画像と明るさ・コントラストを補正した画像を読み比べます。写真は端末内だけで処理し、保存や送信はしません。読み取り誤りは起こるため、必ず確認・修正してから登録してください。初回は読み取り用データ（約6MB）の読み込みに時間がかかります。</p>
           <div class="roster-photo-controls">
             <label class="field">登録先チーム<select id="roster-photo-team"></select></label>
             <label class="field">写真<input id="roster-photo-file" type="file" accept="image/*"></label>

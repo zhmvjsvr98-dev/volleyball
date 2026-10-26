@@ -4,7 +4,7 @@ import {
 } from "./score.js";
 import { parseRosterText, recognizeRosterImage } from "./roster-import.js";
 import {
-  buildStore, createEmptyMatch, createId, describePlayerRole, MAX_MATCHES, PLAYER_POSITIONS, readStore, sortPlayersByNumber, validateImport, validateRulePlugin, validateStoreImport, writeStore,
+  buildStore, createEmptyMatch, createId, describePlayerRole, MAX_MATCHES, PLAYER_POSITIONS, readStore, sortPlayersByNumber, UNIFORM_COLOR_PRESETS, validateImport, validateRulePlugin, validateStoreImport, writeStore,
 } from "./storage.js";
 import {
   createQualityEventMatch, createQualityMatch, createQualityStressRecords, deleteQualityDatabase,
@@ -207,41 +207,103 @@ function renderRulePluginOptions() {
   byId("export-rule-plugin").disabled = !selectedPluginIsLocal;
 }
 
-function importRulePlugin() {
+async function importRulePlugin() {
   if (storageRecoveryRequired) {
-    showError("保存データの復旧が必要なため、ルールJSONを登録できません。先にバックアップを読み込んでください。");
+    showError("保存データの復旧が必要なため、ルール設定を読み込めません。先にバックアップを読み込んでください。");
     return;
   }
-  if (byId("rule-plugin-json").value.length > 20_000) {
-    showError("ルールJSONは20,000文字以内で入力してください。");
+  const file = byId("rule-plugin-file").files?.[0];
+  if (!file) {
+    showError("読み込むルール設定ファイルを選択してください。");
+    return;
+  }
+  if (file.size > 20_000) {
+    showError("ルール設定ファイルは20,000バイト以内にしてください。");
     return;
   }
   let profile;
   try {
-    profile = JSON.parse(byId("rule-plugin-json").value);
+    profile = JSON.parse(await file.text());
   } catch (error) {
-    showError(`JSONを解析できません: ${error.message}`);
+    showError(`設定ファイルを読み込めません: ${error.message}`);
     return;
   }
   if (!validateRulePlugin(profile) || Object.hasOwn(builtInRuleProfiles, profile.id)) {
-    showError("ルールJSONの形式が不正です。許可された競技条件を含むJSONを入力してください。");
+    showError("設定ファイルの形式が正しくありません。アプリから出力したローカルルール設定ファイルを選んでください。");
     return;
   }
   if (store.plugins.length >= 100 && !store.plugins.some((item) => item.id === profile.id)) {
-    showError("ローカルルールJSONは100件まで登録できます。不要な設定を削除してから登録してください。");
+    showError("ローカルルールは100件まで登録できます。不要な設定を削除してから読み込んでください。");
     return;
   }
   store.plugins = [...store.plugins.filter((item) => item.id !== profile.id), profile].slice(0, 100);
   store = buildStore(store.matches, store.teamProfiles, store.tournaments, store.auditLog, store.plugins);
   renderRulePluginOptions();
+  byId("rule-plugin-file").value = "";
   if (matchHasStarted()) {
-    byId("rule-plugin-json").value = "";
     scheduleSave(true);
-    showError("ルール設定JSONを登録しました。進行中の試合には適用されないため、次の試合で選択してください。");
+    showError("ルール設定を読み込みました。進行中の試合には適用されないため、次の試合で選択してください。");
     return;
   }
   applyRuleProfile(profile);
-  byId("rule-plugin-json").value = "";
+}
+
+function registerRulePluginFromForm() {
+  if (storageRecoveryRequired) {
+    showError("保存データの復旧が必要なため、ローカルルールを登録できません。先にバックアップを読み込んでください。");
+    return;
+  }
+  if (matchHasStarted()) {
+    showError("試合開始後はローカルルールを登録できません。次の試合で登録してください。");
+    return;
+  }
+  const name = byId("rule-plugin-name").value.trim().slice(0, 60);
+  if (!name) {
+    showError("ローカルルールの設定名を入力してください。");
+    byId("rule-plugin-name").focus();
+    return;
+  }
+  const numericSettings = [
+    ["regularTarget", "rule-plugin-regular-target"],
+    ["finalTarget", "rule-plugin-final-target"],
+    ["winBy", "rule-plugin-win-by"],
+    ["timeoutLimit", "rule-plugin-timeout-limit"],
+    ["substitutionLimit", "rule-plugin-substitution-limit"],
+    ["rosterLimit", "rule-plugin-roster-limit"],
+    ["warmupMinutes", "rule-plugin-warmup-minutes"],
+    ["courtChangeInterval", "rule-plugin-court-change-interval"],
+  ];
+  const settings = {
+    matchProfile: byId("rule-plugin-match-profile").value,
+    category: byId("rule-plugin-category").value,
+    division: byId("rule-plugin-division").value,
+    bestOf: Number(byId("rule-plugin-best-of").value),
+    rotationEnabled: byId("rule-plugin-rotation-enabled").checked,
+    technicalTimeoutPoints: [
+      Number(byId("rule-plugin-technical-timeout-1").value),
+      Number(byId("rule-plugin-technical-timeout-2").value),
+    ],
+  };
+  numericSettings.forEach(([key, id]) => {
+    settings[key] = Number(byId(id).value);
+  });
+  let id = `local-${Date.now().toString(36)}`;
+  while (store.plugins.some((item) => item.id === id)) id = `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const profile = { id, name, settings };
+  if (!validateRulePlugin(profile)) {
+    showError("入力された設定値に誤りがあります。各項目の範囲を確認してください。");
+    return;
+  }
+  if (store.plugins.length >= 100) {
+    showError("ローカルルールは100件まで登録できます。不要な設定を削除してから登録してください。");
+    return;
+  }
+  store.plugins = [...store.plugins, profile];
+  store = buildStore(store.matches, store.teamProfiles, store.tournaments, store.auditLog, store.plugins);
+  renderRulePluginOptions();
+  applyRuleProfile(profile);
+  byId("rule-plugin-name").value = "";
+  clearError();
 }
 
 function deleteRulePlugin() {
@@ -381,6 +443,16 @@ function updateBestOf(selectedBestOf, matchProfile = currentMatch.rules.matchPro
   setTargetFields.forEach((id, index) => {
     byId(id).value = String(getDefaultSetTargets(matchProfile, selectedBestOf)[index]);
   });
+  syncSetCountVisibility();
+}
+
+function syncSetCountVisibility() {
+  courtChangeSetFields.forEach((id, index) => {
+    byId(id).closest("label").hidden = index + 1 >= currentMatch.rules.bestOf;
+  });
+  setTargetFields.forEach((id, index) => {
+    byId(id).closest("label").hidden = index >= currentMatch.rules.bestOf;
+  });
 }
 
 function getTeam(teamId) {
@@ -421,6 +493,12 @@ function updateTeamColor(teamId, color, role = "players") {
   const suffix = teamIndex === 0 ? "a" : "b";
   const setupColor = byId(`team-${role === "libero" ? "libero-" : ""}color-setup-${suffix}`);
   if (setupColor) setupColor.value = color;
+  document.querySelectorAll("select[data-team-color-preset]").forEach((select) => {
+    if (select.dataset.teamColor === teamId && select.dataset.teamColorRole === role) {
+      select.value = UNIFORM_COLOR_PRESETS.some(([preset]) => preset === color.toLowerCase())
+        ? color.toLowerCase() : "custom";
+    }
+  });
   document.querySelectorAll("input[data-team-color]").forEach((input) => {
     if (input.dataset.teamColor === teamId && input.dataset.teamColorRole === role) input.value = color;
   });
@@ -467,8 +545,7 @@ async function persistNow() {
       setSaveStatus(`保存済み ${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`);
     }
     renderHistory();
-    renderTournamentManagement();
-    renderSeasonStats();
+    renderVisibleSupplementalViews();
     if (invalidatedFixtures.length) showError(tournamentNotice);
   } catch (error) {
     dirty = true;
@@ -541,7 +618,7 @@ function updateFromForm() {
   }
   if (adjustedBestOf) showError("この競技形式は3セットマッチのみのため、試合方式を3セットマッチにしました。");
   else clearError();
-  renderPageSummaries();
+  renderCurrentPageSummaries();
   scheduleSave();
 }
 
@@ -558,6 +635,7 @@ function populateForm() {
   byId("best-of").querySelector('option[value="5"]').disabled =
     ["six-elementary", "nine", "beach", "soft"].includes(currentMatch.rules.matchProfile);
   byId("rotation-enabled").checked = usesCourtRotation(currentMatch);
+  syncSetCountVisibility();
   courtChangeSetFields.forEach((id, index) => {
     byId(id).checked = currentMatch.rules.courtChangeSets.includes(index + 1);
     byId(id).disabled = matchHasStarted() || index + 1 >= currentMatch.rules.bestOf;
@@ -580,6 +658,24 @@ function populateForm() {
   byId("team-color-setup-b").disabled = locked;
   byId("team-libero-color-setup-a").disabled = locked;
   byId("team-libero-color-setup-b").disabled = locked;
+  document.querySelectorAll("select[data-team-color-preset]").forEach((select) => {
+    const teamIndex = select.id.endsWith("-a") ? 0 : select.id.endsWith("-b") ? 1 : -1;
+    const team = teamIndex < 0 ? getTeam(select.dataset.teamColor) : currentMatch.teams[teamIndex];
+    if (!team) return;
+    const role = select.dataset.teamColorRole;
+    const color = role === "libero"
+      ? (team.liberoUniformColor || (teamIndex === 0 ? "#facc15" : "#22c55e"))
+      : (team.uniformColor || (teamIndex === 0 ? "#1d4ed8" : "#f97316"));
+    select.dataset.teamColor = team.id;
+    if (!select.options.length) {
+      select.append(new Option("色を選択", ""));
+      UNIFORM_COLOR_PRESETS.forEach(([preset, name]) => select.append(new Option(name, preset)));
+      select.append(new Option("その他（右で選択）", "custom"));
+    }
+    select.value = UNIFORM_COLOR_PRESETS.some(([preset]) => preset === color.toLowerCase())
+      ? color.toLowerCase() : "custom";
+    select.disabled = locked;
+  });
   byId("rotation-enabled").disabled = locked || currentMatch.rules.matchProfile !== "six" || currentMatch.rules.category === "小学生";
   byId("team-name-setup-a").value = currentMatch.teams[0].name;
   byId("team-name-setup-b").value = currentMatch.teams[1].name;
@@ -589,10 +685,22 @@ function populateForm() {
   byId("team-color-setup-b").value = currentMatch.teams[1].uniformColor || "#f97316";
   byId("team-libero-color-setup-a").value = currentMatch.teams[0].liberoUniformColor || "#facc15";
   byId("team-libero-color-setup-b").value = currentMatch.teams[1].liberoUniformColor || "#22c55e";
+  ["a", "b"].forEach((suffix, index) => {
+    document.querySelectorAll(`select[data-team-color-preset][id$="-setup-${suffix}"]`).forEach((select) => {
+      select.dataset.teamColor = currentMatch.teams[index].id;
+    });
+  });
 }
 
 function renderHistory() {
   const selectedId = currentMatch?.id;
+  const signature = JSON.stringify(store.matches.map((match) => [
+    match.id,
+    match.matchInfo.matchDate,
+    match.teams.map((team) => team.name),
+  ]));
+  if (renderHistory.signature === signature && elements.history.value === (selectedId || "")) return;
+  renderHistory.signature = signature;
   elements.history.replaceChildren();
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -4407,33 +4515,67 @@ function recordRallyPlay() {
 
 function render() {
   if (!currentMatch) return;
+  const matchPageActive = getActivePage() === "match";
   populateForm();
   const locked = matchHasStarted();
   Object.values(ruleFields).forEach((id) => { byId(id).disabled = locked; });
   renderTeams();
   renderScoreboard();
   renderSetStrip();
-  renderEvents();
-  renderTimeouts();
-  renderChallenges();
-  renderCourtChange();
-  renderSubstitutionMonitors();
-  renderTechnicalTimeoutStatus();
-  renderDurationStatus();
-  renderLivePerformanceMetrics();
-  renderIntegrityAlerts();
-  renderCurrentSetReport();
+  if (matchPageActive) {
+    renderEvents();
+    renderTimeouts();
+    renderChallenges();
+    renderCourtChange();
+    renderSubstitutionMonitors();
+    renderTechnicalTimeoutStatus();
+    renderDurationStatus();
+    renderLivePerformanceMetrics();
+    renderIntegrityAlerts();
+    renderCurrentSetReport();
+  }
   renderMatchTimer();
   renderRotation();
   applyTeamColors();
   byId("undo-event").disabled = currentSet().events.length === 0;
-  renderTournamentManagement();
-  renderSeasonStats();
-  renderMedicalEntryOptions();
-  renderTrainingMatchOptions();
-  renderMatchupComparison();
-  renderVideoPanel();
-  renderPageSummaries();
+  renderVisibleSupplementalViews();
+  renderHomeSummary();
+}
+
+function getActivePage() {
+  return document.querySelector(".app-page.active[data-page-panel]")?.dataset.pagePanel || "home";
+}
+
+function renderHomeSummary() {
+  if (!currentMatch) return;
+  const [teamA, teamB] = currentMatch.teams;
+  const current = currentSet();
+  byId("roster-count").textContent = `${teamA.name}: ${teamA.players.length}名　/　${teamB.name}: ${teamB.players.length}名`;
+  byId("home-score-a").textContent = String(getScore(current, teamA.id));
+  byId("home-score-b").textContent = String(getScore(current, teamB.id));
+  byId("home-set-label").textContent = `SET ${current.number}`;
+  byId("live-match-meta").textContent = [
+    currentMatch.matchInfo.tournamentName,
+    currentMatch.matchInfo.matchDate,
+    currentMatch.matchInfo.matchNumber,
+  ].filter(Boolean).join(" · ") || "リアルタイムスコア記録";
+}
+
+function renderVisibleSupplementalViews() {
+  const page = getActivePage();
+  if (page === "setup") renderMatchupComparison();
+  if (page === "tournaments" || page === "courts") renderTournamentManagement();
+  if (page === "season") renderSeasonStats();
+  if (page === "referee-training") renderTrainingMatchOptions();
+  if (page === "video-sync") renderVideoPanel();
+}
+
+function renderCurrentPageSummaries() {
+  if (["confirm", "scoresheet", "sets", "result", "verify", "output"].includes(getActivePage())) {
+    renderPageSummaries();
+  } else {
+    renderHomeSummary();
+  }
 }
 
 function getIntegrityIssues(match, set = match.sets.at(-1)) {
@@ -7266,6 +7408,7 @@ function bindEvents() {
       .find((item) => item.id === byId("rule-plugin-select").value);
     if (profile) applyRuleProfile(profile);
   });
+  byId("save-rule-plugin-form").addEventListener("click", registerRulePluginFromForm);
   byId("import-rule-plugin").addEventListener("click", importRulePlugin);
   byId("delete-rule-plugin").addEventListener("click", deleteRulePlugin);
   byId("export-rule-plugin").addEventListener("click", exportRulePlugin);
@@ -7327,7 +7470,7 @@ function bindEvents() {
     if (matchHasStarted()) return;
     currentMatch.sets[0].initialServiceTeamId = byId("prestart-initial-server").value;
     renderRotation();
-    renderPageSummaries();
+    renderCurrentPageSummaries();
     scheduleSave(true);
   });
 
@@ -7347,7 +7490,7 @@ function bindEvents() {
         if (role === "firstReferee") currentMatch.matchInfo.referee1 = currentMatch.matchInfo.officials[role].name;
         if (role === "secondReferee") currentMatch.matchInfo.referee2 = currentMatch.matchInfo.officials[role].name;
         if (role === "scorer") currentMatch.matchInfo.scorer = currentMatch.matchInfo.officials[role].name;
-        renderPageSummaries();
+        renderCurrentPageSummaries();
         scheduleSave();
       };
       input.addEventListener("input", updateOfficial);
@@ -7430,7 +7573,7 @@ function bindEvents() {
       renderTeams();
       renderScoreboard();
       renderTimeouts();
-      renderPageSummaries();
+      renderCurrentPageSummaries();
       scheduleSave();
     });
   }
@@ -7781,6 +7924,12 @@ function bindEvents() {
   byId("actual-server-player").addEventListener("change", () => renderServiceOrderStatus());
   document.addEventListener("change", (event) => {
     const select = event.target;
+    if (select instanceof HTMLSelectElement && select.matches("select[data-team-color-preset]")) {
+      if (select.value && select.value !== "custom") {
+        updateTeamColor(select.dataset.teamColor, select.value, select.dataset.teamColorRole);
+      }
+      return;
+    }
     if (!(select instanceof HTMLSelectElement) || !select.matches("[data-rotation-team]")) return;
     const team = getTeam(select.dataset.rotationTeam);
     const count = getCourtPlayerCount(currentMatch);
@@ -7799,7 +7948,7 @@ function bindEvents() {
     currentMatch.sets[0].startingLineups[team.id] = [...team.rotationLineup];
     clearError();
     renderRotation();
-    renderPageSummaries();
+    renderCurrentPageSummaries();
     scheduleSave(true);
   });
  document.addEventListener("input", (event) => {
@@ -7992,12 +8141,15 @@ function navigateTo(page, updateAddress = true) {
   if (updateAddress && location.hash !== `#${selected}`) history.pushState(null, "", `#${selected}`);
   const activeNavigation = document.querySelector(`.nav-item[data-page="${selected}"].active`);
   if (activeNavigation) document.title = `${activeNavigation.textContent.trim()} | JVA Volleyball Official Electronic Score Sheet`;
-  if (selected === "confirm" || selected === "scoresheet" || selected === "sets" || selected === "result" || selected === "verify" || selected === "output" || selected === "manual") {
+  if (selected === "match") {
+    render();
+    renderMedicalEntryOptions();
+  }
+  else renderVisibleSupplementalViews();
+  if (selected === "confirm" || selected === "scoresheet" || selected === "sets" || selected === "result" || selected === "verify" || selected === "output") {
     renderPageSummaries();
   }
   if (selected === "audit") renderAuditLog();
-  if (selected === "courts") renderTournamentManagement();
-  if (selected === "video-sync") renderVideoPanel();
   if (selected === "quality-assurance") renderQualityReport();
 }
 

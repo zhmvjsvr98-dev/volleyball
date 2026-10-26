@@ -1,4 +1,6 @@
-import { describePlayerRole, PLAYER_POSITIONS, sortPlayersByNumber } from "./storage.js";
+import {
+  describePlayerRole, PLAYER_POSITIONS, sortPlayersByNumber, UNIFORM_COLOR_PRESETS,
+} from "./storage.js";
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -37,6 +39,16 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   ].forEach(([role, label, value]) => {
     const colorLabel = element("label", "field");
     colorLabel.append(document.createTextNode(label));
+    const presetSelect = element("select", "team-color-preset");
+    presetSelect.dataset.teamColor = team.id;
+    presetSelect.dataset.teamColorPreset = "true";
+    presetSelect.dataset.teamColorRole = role;
+    presetSelect.setAttribute("aria-label", `${team.name}の${label}の簡単色選択`);
+    presetSelect.append(new Option("色を選択", ""));
+    UNIFORM_COLOR_PRESETS.forEach(([color, name]) => presetSelect.append(new Option(name, color)));
+    presetSelect.append(new Option("その他（右で選択）", "custom"));
+    presetSelect.value = UNIFORM_COLOR_PRESETS.some(([color]) => color === value.toLowerCase()) ? value.toLowerCase() : "custom";
+    presetSelect.disabled = rosterLocked;
     const colorInput = element("input");
     colorInput.type = "color";
     colorInput.value = value;
@@ -45,7 +57,7 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
     colorInput.title = label;
     colorInput.setAttribute("aria-label", `${team.name}の${label}`);
     colorInput.disabled = rosterLocked;
-    colorLabel.append(colorInput);
+    colorLabel.append(presetSelect, colorInput);
     colorFields.append(colorLabel);
   });
 

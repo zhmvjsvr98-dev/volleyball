@@ -139,28 +139,137 @@ async function imageToCanvas(file) {
   return canvas;
 }
 
+function createHighContrastCanvas(source) {
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(source, 0, 0);
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  const histogram = new Uint32Array(256);
+  const grayValues = new Uint8Array(canvas.width * canvas.height);
+  for (let pixel = 0; pixel < grayValues.length; pixel += 1) {
+    const offset = pixel * 4;
+    const gray = Math.round(
+      image.data[offset] * 0.299 + image.data[offset + 1] * 0.587 + image.data[offset + 2] * 0.114,
+    );
+    grayValues[pixel] = gray;
+    histogram[gray] += 1;
+  }
+
+  const pixelCount = grayValues.length;
+  const percentile = (fraction) => {
+    const target = pixelCount * fraction;
+    let total = 0;
+    for (let value = 0; value < histogram.length; value += 1) {
+      total += histogram[value];
+      if (total >= target) return value;
+    }
+    return 255;
+  };
+  const low = percentile(0.02);
+  const high = percentile(0.98);
+  if (high <= low) {
+    canvas.width = 0;
+    canvas.height = 0;
+    return null;
+  }
+
+  const stretchedHistogram = new Uint32Array(256);
+  const stretched = new Uint8Array(pixelCount);
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    const value = Math.max(0, Math.min(255, Math.round(((grayValues[pixel] - low) * 255) / (high - low))));
+    stretched[pixel] = value;
+    stretchedHistogram[value] += 1;
+  }
+  let totalIntensity = 0;
+  for (let value = 0; value < 256; value += 1) totalIntensity += value * stretchedHistogram[value];
+  let backgroundWeight = 0;
+  let backgroundIntensity = 0;
+  let bestVariance = -1;
+  let threshold = 127;
+  for (let value = 0; value < 256; value += 1) {
+    backgroundWeight += stretchedHistogram[value];
+    if (!backgroundWeight) continue;
+    const foregroundWeight = pixelCount - backgroundWeight;
+    if (!foregroundWeight) break;
+    backgroundIntensity += value * stretchedHistogram[value];
+    const backgroundMean = backgroundIntensity / backgroundWeight;
+    const foregroundMean = (totalIntensity - backgroundIntensity) / foregroundWeight;
+    const variance = backgroundWeight * foregroundWeight * (backgroundMean - foregroundMean) ** 2;
+    if (variance > bestVariance) {
+      bestVariance = variance;
+      threshold = value;
+    }
+  }
+  for (let pixel = 0; pixel < pixelCount; pixel += 1) {
+    const value = stretched[pixel] <= threshold ? 0 : 255;
+    const offset = pixel * 4;
+    image.data[offset] = value;
+    image.data[offset + 1] = value;
+    image.data[offset + 2] = value;
+    image.data[offset + 3] = 255;
+  }
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
+function rosterTextScore(text) {
+  const { rows } = parseRosterText(text);
+  const numbers = rows.map(({ number }) => number).filter(Boolean);
+  const names = rows.filter(({ name }) => name.length > 0).length;
+  const uniqueNumbers = new Set(numbers).size;
+  return rows.length * 10 + names * 4 + uniqueNumbers * 3 - (numbers.length - uniqueNumbers) * 5;
+}
+
 export async function recognizeRosterImage(file, onProgress = () => {}) {
   await loadOcrScript();
   const canvas = await imageToCanvas(file);
-  const worker = await window.Tesseract.createWorker("jpn", 1, {
-    workerPath: absoluteUrl(`${OCR_DIRECTORY}worker.min.js`),
-    corePath: absoluteUrl(`${OCR_DIRECTORY}tesseract-core-simd-lstm.wasm.js`),
-    langPath: absoluteUrl(OCR_DIRECTORY.replace(/\/$/, "")),
-    gzip: true,
-    workerBlobURL: false,
-    cacheMethod: "none",
-    logger: (message) => onProgress(message),
-  });
+  let enhancedCanvas;
+  let worker;
   try {
+    onProgress({ status: "画像の明るさとコントラストを調整しています" });
+    enhancedCanvas = createHighContrastCanvas(canvas);
+    worker = await window.Tesseract.createWorker("jpn", 1, {
+      workerPath: absoluteUrl(`${OCR_DIRECTORY}worker.min.js`),
+      corePath: absoluteUrl(`${OCR_DIRECTORY}tesseract-core-simd-lstm.wasm.js`),
+      langPath: absoluteUrl(OCR_DIRECTORY.replace(/\/$/, "")),
+      gzip: true,
+      workerBlobURL: false,
+      cacheMethod: "none",
+      logger: (message) => onProgress(message),
+    });
     await worker.setParameters({
-      tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK,
+      tessedit_pageseg_mode: window.Tesseract.PSM.AUTO,
       preserve_interword_spaces: "1",
     });
-    const { data } = await worker.recognize(canvas);
-    return data.text || "";
+    onProgress({ status: "元画像を読み取っています" });
+    const original = await worker.recognize(canvas);
+    let bestText = original.data.text || "";
+    let bestScore = rosterTextScore(bestText);
+    let bestConfidence = Number(original.data.confidence) || 0;
+    if (enhancedCanvas) {
+      onProgress({ status: "補正画像も確認しています" });
+      await worker.setParameters({
+        tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK,
+        preserve_interword_spaces: "1",
+      });
+      const enhanced = await worker.recognize(enhancedCanvas);
+      const enhancedText = enhanced.data.text || "";
+      const enhancedScore = rosterTextScore(enhancedText);
+      const enhancedConfidence = Number(enhanced.data.confidence) || 0;
+      if (enhancedScore > bestScore || (enhancedScore === bestScore && enhancedConfidence > bestConfidence)) {
+        bestText = enhancedText;
+      }
+    }
+    return bestText;
   } finally {
-    await worker.terminate();
+    if (worker) await worker.terminate();
     canvas.width = 0;
     canvas.height = 0;
+    if (enhancedCanvas) {
+      enhancedCanvas.width = 0;
+      enhancedCanvas.height = 0;
+    }
   }
 }

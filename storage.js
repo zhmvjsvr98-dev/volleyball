@@ -18,6 +18,20 @@ export const PLAYER_POSITIONS = [
   ["OP", "オポジット"],
 ];
 
+export const UNIFORM_COLOR_PRESETS = [
+  ["#ffffff", "白"],
+  ["#111827", "黒"],
+  ["#ef4444", "赤"],
+  ["#f97316", "オレンジ"],
+  ["#facc15", "黄"],
+  ["#22c55e", "緑"],
+  ["#06b6d4", "水色"],
+  ["#2563eb", "青"],
+  ["#1d4ed8", "紺"],
+  ["#a855f7", "紫"],
+  ["#ec4899", "ピンク"],
+];
+
 export function describePlayerRole(player) {
   const parts = [];
   if (player.isCaptain) parts.push("キャプテン(C)");
