@@ -190,7 +190,12 @@ input::placeholder { color: var(--muted); opacity: .72; }
 .notice.is-warning { color: var(--danger); font-weight: 800; }
 .match-duration-status { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem 1.5rem; padding: .7rem; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
 .live-match-metrics { margin-top: 1rem; padding: .8rem; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
-.live-match-metrics h2 { margin: 0 0 .65rem; font-size: 1rem; }
+.live-match-metrics > summary { cursor: pointer; list-style: none; }
+.live-match-metrics > summary::-webkit-details-marker { display: none; }
+.live-match-metrics > summary::before { content: "＋"; display: inline-block; width: 1.4rem; color: var(--brand); font-weight: 800; }
+.live-match-metrics[open] > summary::before { content: "−"; }
+.live-match-metrics h2 { display: inline; margin: 0; font-size: 1rem; }
+.live-match-metrics[open] > summary { margin-bottom: .65rem; }
 .live-performance-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
 .live-team-metrics { min-width: 0; padding: .65rem; border: 1px solid var(--team-accent); border-radius: 8px; }
 .live-team-metrics h3 { margin: 0 0 .45rem; color: var(--team-accent); font-size: .9rem; }

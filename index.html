@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=63">
+  <link rel="stylesheet" href="./style.css?v=64">
   <script src="./version.js"></script>
   <script type="module" src="./app.js"></script>
 </head>
@@ -235,6 +235,7 @@
               <li>「開始確認」画面で大会情報、チーム、選手、審判、コート配置、最初のサーブを確認します。</li>
               <li>審判、両チームのキャプテン、ローテーション/サーブ順、第1サーバーなどのチェックがすべて「確認済み」になると、試合開始ボタンが有効になります。不足項目がある場合は、表示された画面へ戻って登録します。</li>
               <li>すべて確認したら<strong>「試合を開始する」</strong>を1回押します。試合画面に移動し、開始時刻が記録されます。</li>
+              <li>第2セット以降は、セット終了後に試合画面の「第○セットの設定へ」を押し、新しいセットのローテーション・サーブ順を入力します。続けて開始確認で配置とリベロ背番号を確認し、「第○セットを開始する」を押します。</li>
               <li>開始後に登録内容の間違いに気づいた場合は、勝手に入力を続けず、記録責任者に確認して訂正方法を決めてください。</li>
             </ol>
           </section>
@@ -408,8 +409,9 @@
               <li><b>詳細を記録する場合：</b>ラリー記録を開き、チーム、コート内選手、プレー、結果を順に選択して各動作を登録します。得点または失点の結果を登録するとスコアも更新されるので、そのラリーについて別途「＋1」を押しません。</li>
               <li><b>サーブ順：</b>ローテーションを使う試合では「実際にサーブした選手」を選ぶと、登録された順番との照合に使われます。警告は入力内容に基づく注意表示であり、実際のサーブを自動認識するものではありません。</li>
               <li><b>位置情報：</b>アタックは攻撃ゾーン、サーブ/レシーブはコート図のコースを必要に応じて選択します。見ていない、記録がないなど不明なときは「記録しない」を選び、推測で位置を入力しないでください。</li>
-              <li><b>試合イベント：</b>タイムアウトは要求チームを確認し、交代は退く選手・入る選手、リベロ交代は対象者を確認してから記録します。警告・罰則、チャレンジ、メディカル対応も、画面の対象チーム・選手・結果を確認して記録します。</li>
-              <li><b>セット終了時：</b>セット点、勝者、試合方式に応じた次セットのコート・サーバーを確認します。自動記録されたコートチェンジやTTOをイベント履歴で確認し、次セットの初期配置が正しいことを確かめます。</li>
+              <li><b>試合イベント：</b>タイムアウトは要求チームを確認し、交代は退く選手・入る選手、リベロ交代は退くリベロ・選手と入るリベロ・選手を確認してから記録します。警告・罰則、チャレンジ、メディカル対応も、画面の対象チーム・選手・結果を確認して記録します。</li>
+              <li><b>セット終了時：</b>セット点、勝者、試合方式に応じた次セットのコート・サーバーを確認します。次セットはローテーション設定画面と開始確認を経てから開始します。開始確認では両チームの配置とリベロ背番号も確認してください。</li>
+              <li><b>リアルタイム分析：</b>試合画面の「リアルタイム分析」を開くとチーム別指標やローテーション別得失点を確認できます。通常の記録時は折りたたんでおけます。</li>
               <li><b>試合中の確認：</b>保存状態の表示と試合イベント履歴を定期的に確認します。画面上部の保存エラーが消えない場合は、入力を続ける前に表示内容を確認し、利用可能なら帳票出力から現在の試合JSONを書き出します。</li>
             </ol>
             <div class="manual-callout-row"><span class="manual-callout-number">!</span><p><b>最重要：</b>同じラリーに「＋1」とラリー記録の「得点/失点」を両方使うと二重加点になります。記録方法をラリーごとに決め、確定後にスコアとイベント履歴を確認してください。</p></div>
@@ -701,10 +703,10 @@
       </section>
 
       <section class="app-page" data-page-panel="rotation" hidden>
-        <div class="page-heading"><div><span class="eyebrow">03. ROTATION & SERVICE ORDER</span><h1>ローテーション・サーブ順設定</h1><p>試合開始前に両チームの選手位置と第1サーバーを登録します。コート中央のネットをはさんで表示します。</p></div><button class="button button-primary" data-go="staff" type="button">次へ: 04 審判登録</button></div>
+        <div class="page-heading"><div><span class="eyebrow">03. ROTATION & SERVICE ORDER</span><h1 id="rotation-page-title">ローテーション・サーブ順設定</h1><p id="rotation-page-description">試合開始前に両チームの選手位置と第1サーバーを登録します。コート中央のネットをはさんで表示します。</p></div><div class="output-actions"><button id="rotation-cancel-setup" class="button button-secondary" type="button" hidden>セット開始設定を中止</button><button id="rotation-next-confirm" class="button button-primary" type="button" hidden>次へ: 開始確認</button><button id="rotation-next-staff" class="button button-primary" data-go="staff" type="button">次へ: 04 審判登録</button></div></div>
         <section class="panel content-panel">
           <div class="rotation-controls">
-            <label class="field">第1セットの最初のサーブ
+            <label class="field"><span id="prestart-server-label-text">第1セットの最初のサーブ</span>
               <select id="prestart-initial-server"></select>
             </label>
             <span id="prestart-server-indicator" class="server-indicator">第1サーバー: 未設定</span>
@@ -743,12 +745,12 @@
       </section>
 
       <section class="app-page" data-page-panel="confirm" hidden>
-        <div class="page-heading"><div><span class="eyebrow">05. MATCH CONFIRMATION</span><h1>試合開始確認</h1><p>大会情報、チーム、審判、ローテーションを確認して試合を始めます。</p></div></div>
+        <div class="page-heading"><div><span class="eyebrow">05. MATCH CONFIRMATION</span><h1 id="confirm-page-title">試合開始確認</h1><p id="confirm-page-description">大会情報、チーム、審判、ローテーションを確認して試合を始めます。</p></div></div>
         <section class="panel content-panel">
           <div id="confirmation-summary" class="confirmation-grid"></div>
           <div id="confirmation-rotation" class="confirmation-rotation"></div>
           <section class="prestart-check-panel">
-            <h2>試合開始前チェック</h2>
+            <h2 id="prestart-check-title">試合開始前チェック</h2>
             <ul id="prestart-checklist" class="prestart-checklist"></ul>
           </section>
           <div class="confirm-actions"><button class="button button-secondary" data-go="rotation" type="button">ローテーションを修正</button><button id="start-match" class="button button-primary" type="button">試合を開始する</button></div>
@@ -772,11 +774,11 @@
           </div>
           <div id="match-rotation-layout" class="rotation-court-layout"></div>
           <div id="scoreboard" class="scoreboard"></div>
-          <section class="live-match-metrics" aria-live="polite">
-            <h2>リアルタイム分析</h2>
+          <details class="live-match-metrics">
+            <summary><h2>リアルタイム分析</h2></summary>
             <div id="live-performance-metrics" class="live-performance-metrics"></div>
             <div id="rotation-analysis-live" class="rotation-analysis-live"></div>
-          </section>
+          </details>
           <section id="set-end-report-live" class="set-end-report-live" hidden></section>
           <div class="match-duration-status">
             <span id="match-duration-live">試合時間: —</span>
@@ -896,8 +898,8 @@
             </div></section>
             <section class="event-tool"><h3>リベロ交代</h3><div class="event-form">
               <label class="field">チーム<select id="libero-team"></select></label>
-              <label class="field">退くリベロ<input id="libero-out" maxlength="20" placeholder="背番号または氏名"></label>
-              <label class="field">入るリベロ<input id="libero-in" maxlength="20" placeholder="背番号または氏名"></label>
+              <label class="field">退くリベロ・選手<input id="libero-out" maxlength="20" placeholder="背番号または氏名"></label>
+              <label class="field">入るリベロ・選手<input id="libero-in" maxlength="20" placeholder="背番号または氏名"></label>
               <button id="record-libero-substitution" class="button button-secondary" type="button">リベロ交代を記録</button>
               <p id="libero-monitor" class="notice" role="status"></p>
             </div></section>
