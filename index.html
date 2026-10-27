@@ -8,13 +8,13 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=68">
+  <link rel="stylesheet" href="./style.css?v=69">
   <script src="./version.js"></script>
   <script type="module" src="./app.js"></script>
 </head>
 <body>
   <header class="app-header">
-    <button id="sidebar-toggle" class="button button-quiet sidebar-toggle" type="button" aria-expanded="true" aria-controls="sidebar">メニュー</button>
+    <button id="sidebar-toggle" class="button button-quiet sidebar-toggle" type="button" aria-expanded="false" aria-controls="sidebar" aria-label="メニューを開く">メニュー</button>
     <a class="brand" href="./" aria-label="試合記録トップ">
       <span><strong>JVA Volleyball Official</strong><small>Electronic Score Sheet</small></span>
     </a>
@@ -65,7 +65,6 @@
           <button class="nav-item" type="button" data-page="quality-assurance" data-qa-preset="regression">一括回帰試験</button>
         </details>
       </nav>
-      <div class="sidebar-footer">つなぐ、支える。<br>バレーボールの未来へ</div>
     </aside>
 
     <main class="page-shell">
@@ -94,6 +93,7 @@
           <button class="button button-primary" data-go="setup" type="button">試合設定を始める</button>
           <p class="app-version">バージョン <span id="app-version">—</span></p>
         </div>
+        <p class="home-slogan">つなぐ、支える。バレーボールの未来へ</p>
       </section>
       <section id="integrity-alerts" class="integrity-alerts" aria-live="assertive" hidden></section>
 

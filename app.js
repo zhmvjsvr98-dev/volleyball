@@ -8384,12 +8384,15 @@ function isCompactViewport() {
 function toggleSidebar() {
   if (isCompactViewport()) {
     document.body.classList.toggle("sidebar-open");
-    byId("sidebar-toggle").setAttribute("aria-expanded", String(document.body.classList.contains("sidebar-open")));
+    const expanded = document.body.classList.contains("sidebar-open");
+    byId("sidebar-toggle").setAttribute("aria-expanded", String(expanded));
+    byId("sidebar-toggle").setAttribute("aria-label", expanded ? "メニューを閉じる" : "メニューを開く");
     return;
   }
   document.body.classList.toggle("sidebar-collapsed");
   const expanded = !document.body.classList.contains("sidebar-collapsed");
   byId("sidebar-toggle").setAttribute("aria-expanded", String(expanded));
+  byId("sidebar-toggle").setAttribute("aria-label", expanded ? "メニューを閉じる" : "メニューを開く");
   try { localStorage.setItem("jva-sidebar-collapsed", String(!expanded)); } catch { /* Optional layout preference. */ }
 }
 
@@ -8401,6 +8404,7 @@ function applyDevicePreset(preset, save = false) {
   const compactLayout = selected === "phone" || (selected === "auto" && matchMedia("(max-width: 820px)").matches);
   const expanded = !compactLayout && !document.body.classList.contains("sidebar-collapsed");
   byId("sidebar-toggle").setAttribute("aria-expanded", String(expanded));
+  byId("sidebar-toggle").setAttribute("aria-label", expanded ? "メニューを閉じる" : "メニューを開く");
   if (save) {
     try { localStorage.setItem("jva-device-preset", selected); } catch { /* Optional layout preference. */ }
   }
@@ -8424,16 +8428,18 @@ function initializeTheme() {
 }
 
 function initializeDeviceSettings() {
+  let collapsed = true;
   try {
     const selected = localStorage.getItem("jva-device-preset") || "auto";
     byId("device-preset").value = ["auto", "phone", "tablet", "desktop"].includes(selected) ? selected : "auto";
     applyDevicePreset(byId("device-preset").value);
-    const collapsed = localStorage.getItem("jva-sidebar-collapsed") === "true";
-    document.body.classList.toggle("sidebar-collapsed", collapsed);
-    byId("sidebar-toggle").setAttribute("aria-expanded", String(!collapsed));
+    collapsed = localStorage.getItem("jva-sidebar-collapsed") !== "false";
   } catch {
     applyDevicePreset("auto");
   }
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  byId("sidebar-toggle").setAttribute("aria-expanded", String(!collapsed));
+  byId("sidebar-toggle").setAttribute("aria-label", collapsed ? "メニューを開く" : "メニューを閉じる");
 }
 
 function navigateTo(page, updateAddress = true) {
@@ -8473,7 +8479,11 @@ function navigateTo(page, updateAddress = true) {
     else button.removeAttribute("aria-current");
   });
   if (isCompactViewport()) document.body.classList.remove("sidebar-open");
-  byId("sidebar-toggle").setAttribute("aria-expanded", String(!isCompactViewport() && !document.body.classList.contains("sidebar-collapsed")));
+  const menuExpanded = isCompactViewport()
+    ? document.body.classList.contains("sidebar-open")
+    : !document.body.classList.contains("sidebar-collapsed");
+  byId("sidebar-toggle").setAttribute("aria-expanded", String(menuExpanded));
+  byId("sidebar-toggle").setAttribute("aria-label", menuExpanded ? "メニューを閉じる" : "メニューを開く");
   if (updateAddress && location.hash !== `#${selected}`) history.pushState(null, "", `#${selected}`);
   const activeNavigation = document.querySelector(`.nav-item[data-page="${selected}"].active`);
   if (activeNavigation) document.title = `${activeNavigation.textContent.trim()} | JVA Volleyball Official Electronic Score Sheet`;
