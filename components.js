@@ -152,7 +152,7 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   liberoCheck.type = "checkbox";
   liberoCheck.name = "libero";
   liberoLabel.append(liberoCheck, document.createTextNode("リベロ"));
-  const positionLabel = element("label", "field");
+  const positionLabel = element("label", "field player-position-field");
   positionLabel.append(document.createTextNode("ポジション"));
   const positionSelect = element("select");
   positionSelect.name = "position";
@@ -161,6 +161,7 @@ export function renderTeamCard(container, team, index, rosterLimit = 30, rosterL
   for (const [code, label] of PLAYER_POSITIONS) positionSelect.append(new Option(`${label}（${code}）`, code));
   positionLabel.append(positionSelect);
   const addButton = element("button", "button button-secondary", "選手を追加");
+  addButton.classList.add("add-player-submit");
   addButton.type = "submit";
   addButton.disabled = rosterLocked || team.players.length >= rosterLimit;
   form.querySelectorAll("input").forEach((input) => { input.disabled = rosterLocked; });

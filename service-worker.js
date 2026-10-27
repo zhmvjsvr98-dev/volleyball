@@ -3,7 +3,7 @@ const CACHE_NAME = `jva-score-static-${self.APP_VERSION}`;
 const APP_FILES = [
   "./",
   "./index.html",
-  "./style.css?v=60",
+  "./style.css?v=63",
   "./app.js",
   "./score.js",
   "./version.js",

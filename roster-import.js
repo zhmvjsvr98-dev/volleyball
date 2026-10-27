@@ -1,5 +1,5 @@
 // 写真の文字認識（端末内処理）と、読み取った文字列から選手候補を作る処理。
-const OCR_DIRECTORY = "./vendor/ocr/";
+const OCR_DIRECTORY = new URL("./vendor/ocr/", import.meta.url);
 const MAX_IMAGE_SIDE = 2200;
 const CJK = "\\u3040-\\u30ff\\u3400-\\u9fff\\uff66-\\uff9f";
 
@@ -23,7 +23,10 @@ function cleanName(text) {
 }
 
 function parseLine(rawLine) {
-  const line = rawLine.normalize("NFKC").replace(/[|｜]/g, " ").trim();
+  const line = rawLine.normalize("NFKC")
+    .replace(/^([|｜!Il])(?=\s|[A-Za-z\u3040-\u30ff\u3400-\u9fff])/, "1")
+    .replace(/[|｜]/g, " ")
+    .trim();
   if (!line) return null;
   let number = "";
   let rest = "";
@@ -36,6 +39,15 @@ function parseLine(rawLine) {
     number = anywhere[1];
     rest = line.replace(anywhere[0], " ");
   } else {
+    const name = cleanName(line);
+    if (
+      /[\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f]/.test(name)
+      && name.length >= 2
+      && name.length <= 30
+      && !/(氏名|背番号|選手|チーム|登録|一覧)/.test(name)
+    ) {
+      return { number: "", name, isCaptain: false, isLibero: false, position: "" };
+    }
     return null;
   }
 
@@ -74,21 +86,18 @@ export function parseRosterText(text) {
   return { rows, skipped };
 }
 
-function absoluteUrl(path) {
-  return new URL(path, document.baseURI).href;
-}
-
 let ocrScriptPromise = null;
 function loadOcrScript() {
   if (window.Tesseract) return Promise.resolve();
   if (!ocrScriptPromise) {
     ocrScriptPromise = new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = `${OCR_DIRECTORY}tesseract.min.js`;
+      script.src = new URL("tesseract.min.js", OCR_DIRECTORY).href;
       script.onload = () => resolve();
       script.onerror = () => {
+        script.remove();
         ocrScriptPromise = null;
-        reject(new Error("読み取り用のファイルを読み込めませんでした。通信状態を確認して再度お試しください。"));
+        reject(new Error("OCRエンジンを読み込めませんでした。ページを再読み込みし、アプリのファイルがすべてそろっていることと通信状態を確認してください。"));
       };
       document.head.append(script);
     });
@@ -127,7 +136,7 @@ async function imageToCanvas(file) {
   const source = await loadImageSource(file);
   const width = source.width || source.naturalWidth;
   const height = source.height || source.naturalHeight;
-  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(width, height));
+  const scale = Math.min(2, MAX_IMAGE_SIDE / Math.max(width, height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(width * scale));
   canvas.height = Math.max(1, Math.round(height * scale));
@@ -214,52 +223,158 @@ function createHighContrastCanvas(source) {
   return canvas;
 }
 
+function createGrayscaleCanvas(source) {
+  const canvas = document.createElement("canvas");
+  canvas.width = source.width;
+  canvas.height = source.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(source, 0, 0);
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  const values = new Uint8Array(canvas.width * canvas.height);
+  let low = 255;
+  let high = 0;
+  for (let pixel = 0; pixel < values.length; pixel += 1) {
+    const offset = pixel * 4;
+    const gray = Math.round(
+      image.data[offset] * 0.299 + image.data[offset + 1] * 0.587 + image.data[offset + 2] * 0.114,
+    );
+    values[pixel] = gray;
+    low = Math.min(low, gray);
+    high = Math.max(high, gray);
+  }
+  if (high <= low) return null;
+  for (let pixel = 0; pixel < values.length; pixel += 1) {
+    const value = Math.max(0, Math.min(255, Math.round(((values[pixel] - low) * 255) / (high - low))));
+    const offset = pixel * 4;
+    image.data[offset] = value;
+    image.data[offset + 1] = value;
+    image.data[offset + 2] = value;
+  }
+  context.putImageData(image, 0, 0);
+  return canvas;
+}
+
 function rosterTextScore(text) {
   const { rows } = parseRosterText(text);
   const numbers = rows.map(({ number }) => number).filter(Boolean);
-  const names = rows.filter(({ name }) => name.length > 0).length;
+  const validNames = rows.filter(({ name }) => /[A-Za-z\u3040-\u30ff\u3400-\u9fff]/.test(name)).length;
   const uniqueNumbers = new Set(numbers).size;
-  return rows.length * 10 + names * 4 + uniqueNumbers * 3 - (numbers.length - uniqueNumbers) * 5;
+  return validNames * 20 + uniqueNumbers * 4 - (numbers.length - uniqueNumbers) * 5 - (rows.length - validNames) * 10;
+}
+
+function rosterTextFromBlocks(blocks, imageWidth, imageHeight) {
+  const numbers = [];
+  const nameGroups = [];
+  for (const block of blocks || []) {
+    for (const paragraph of block.paragraphs || []) {
+      for (const line of paragraph.lines || []) {
+        const words = (line.words || []).filter((word) => word.text?.trim());
+        for (const word of words) {
+          const text = word.text.normalize("NFKC").trim();
+          const number = text.match(/^[#＃]?(\d{1,3})[.)、:]?$/)?.[1]
+            || (/^[|｜!Il]$/.test(text) ? "1" : "");
+          if (number) numbers.push({ number, bbox: word.bbox });
+        }
+
+        const nameWords = words.filter((word) => /[\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f]/.test(word.text));
+        let group = null;
+        for (const word of nameWords) {
+          if (group && word.bbox.x0 - group.bbox.x1 <= Math.max(18, (word.bbox.y1 - word.bbox.y0) * 1.4)) {
+            group.words.push(word.text);
+            group.bbox.x1 = word.bbox.x1;
+            group.bbox.y0 = Math.min(group.bbox.y0, word.bbox.y0);
+            group.bbox.y1 = Math.max(group.bbox.y1, word.bbox.y1);
+          } else {
+            group = { words: [word.text], bbox: { ...word.bbox } };
+            nameGroups.push(group);
+          }
+        }
+      }
+    }
+  }
+
+  const availableNames = new Set(nameGroups.keys());
+  const rows = [];
+  for (const candidate of numbers) {
+    const numberX = (candidate.bbox.x0 + candidate.bbox.x1) / 2;
+    const numberY = (candidate.bbox.y0 + candidate.bbox.y1) / 2;
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+    for (const index of availableNames) {
+      const name = nameGroups[index];
+      const nameX = (name.bbox.x0 + name.bbox.x1) / 2;
+      const nameY = (name.bbox.y0 + name.bbox.y1) / 2;
+      const dx = Math.abs(numberX - nameX) / imageWidth;
+      const dy = Math.abs(numberY - nameY) / imageHeight;
+      if (dx > 0.35 || dy > 0.2) continue;
+      const distance = Math.hypot(dx, dy * 1.5);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    }
+    if (bestIndex < 0) continue;
+    availableNames.delete(bestIndex);
+    rows.push(`${candidate.number} ${nameGroups[bestIndex].words.join(" ")}`);
+  }
+  return rows.join("\n");
 }
 
 export async function recognizeRosterImage(file, onProgress = () => {}) {
   await loadOcrScript();
   const canvas = await imageToCanvas(file);
   let enhancedCanvas;
+  let grayscaleCanvas;
   let worker;
   try {
     onProgress({ status: "画像の明るさとコントラストを調整しています" });
     enhancedCanvas = createHighContrastCanvas(canvas);
+    grayscaleCanvas = createGrayscaleCanvas(canvas);
     worker = await window.Tesseract.createWorker("jpn", 1, {
-      workerPath: absoluteUrl(`${OCR_DIRECTORY}worker.min.js`),
-      corePath: absoluteUrl(`${OCR_DIRECTORY}tesseract-core-simd-lstm.wasm.js`),
-      langPath: absoluteUrl(OCR_DIRECTORY.replace(/\/$/, "")),
+      workerPath: new URL("worker.min.js", OCR_DIRECTORY).href,
+      corePath: new URL("tesseract-core-simd-lstm.wasm.js", OCR_DIRECTORY).href,
+      langPath: OCR_DIRECTORY.href,
       gzip: true,
       workerBlobURL: false,
-      cacheMethod: "none",
+      cacheMethod: "write",
       logger: (message) => onProgress(message),
     });
-    await worker.setParameters({
-      tessedit_pageseg_mode: window.Tesseract.PSM.AUTO,
-      preserve_interword_spaces: "1",
-    });
-    onProgress({ status: "元画像を読み取っています" });
-    const original = await worker.recognize(canvas);
-    let bestText = original.data.text || "";
-    let bestScore = rosterTextScore(bestText);
-    let bestConfidence = Number(original.data.confidence) || 0;
-    if (enhancedCanvas) {
-      onProgress({ status: "補正画像も確認しています" });
+    const candidates = [
+      { canvas, mode: window.Tesseract.PSM.AUTO, label: "元画像を読み取っています" },
+      { canvas, mode: window.Tesseract.PSM.SINGLE_BLOCK, label: "名簿全体を一つの表として読み取っています" },
+      { canvas, mode: window.Tesseract.PSM.SPARSE_TEXT, label: "表内の文字を探しています" },
+      ...(enhancedCanvas ? [
+        { canvas: enhancedCanvas, mode: window.Tesseract.PSM.AUTO, label: "明るさ補正画像を読み取っています" },
+        { canvas: enhancedCanvas, mode: window.Tesseract.PSM.SINGLE_BLOCK, label: "補正画像を一つの表として読み取っています" },
+        { canvas: enhancedCanvas, mode: window.Tesseract.PSM.SPARSE_TEXT, label: "補正画像から表内の文字を探しています" },
+      ] : []),
+      ...(grayscaleCanvas ? [
+        { canvas: grayscaleCanvas, mode: window.Tesseract.PSM.SINGLE_BLOCK, label: "写真や色付き背景を抑えた画像を読み取っています" },
+        { canvas: grayscaleCanvas, mode: window.Tesseract.PSM.SPARSE_TEXT, label: "写真付き紙面から文字を探しています" },
+      ] : []),
+    ];
+    let bestText = "";
+    let bestScore = -1;
+    let bestConfidence = -1;
+    for (const [index, candidate] of candidates.entries()) {
+      onProgress({ status: `${candidate.label}（${index + 1}/${candidates.length}）` });
       await worker.setParameters({
-        tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK,
+        tessedit_pageseg_mode: candidate.mode,
         preserve_interword_spaces: "1",
       });
-      const enhanced = await worker.recognize(enhancedCanvas);
-      const enhancedText = enhanced.data.text || "";
-      const enhancedScore = rosterTextScore(enhancedText);
-      const enhancedConfidence = Number(enhanced.data.confidence) || 0;
-      if (enhancedScore > bestScore || (enhancedScore === bestScore && enhancedConfidence > bestConfidence)) {
-        bestText = enhancedText;
+      const { data } = await worker.recognize(candidate.canvas, {}, { blocks: true });
+      const texts = [
+        data.text || "",
+        rosterTextFromBlocks(data.blocks, candidate.canvas.width, candidate.canvas.height),
+      ];
+      const confidence = Number(data.confidence) || 0;
+      for (const text of texts) {
+        const score = rosterTextScore(text);
+        if (score > bestScore || (score === bestScore && confidence > bestConfidence)) {
+          bestText = text;
+          bestScore = score;
+          bestConfidence = confidence;
+        }
       }
     }
     return bestText;
@@ -270,6 +385,10 @@ export async function recognizeRosterImage(file, onProgress = () => {}) {
     if (enhancedCanvas) {
       enhancedCanvas.width = 0;
       enhancedCanvas.height = 0;
+    }
+    if (grayscaleCanvas) {
+      grayscaleCanvas.width = 0;
+      grayscaleCanvas.height = 0;
     }
   }
 }

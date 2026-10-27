@@ -1304,12 +1304,19 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
 .roster-photo-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .roster-photo-panel .roster-table input[type="text"] { min-width: 4rem; width: 100%; }
 .roster-photo-panel .roster-table-wrap { overflow-x: auto; }
+.roster-photo-edit-help { margin: .75rem 0; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); font-size: .88rem; }
+.roster-photo-panel .roster-table input[type="text"]:focus,
+.roster-photo-panel .roster-table select:focus { border-color: var(--brand); outline: 2px solid color-mix(in srgb, var(--brand) 35%, transparent); outline-offset: 1px; }
 
 .app-version { margin: 8px 0 0; font-size: 0.8rem; opacity: 0.7; }
 
 .add-player-form {
   grid-template-columns: minmax(64px, .55fr) minmax(90px, 1fr) auto auto minmax(92px, .75fr) auto;
   gap: .35rem;
+}
+.add-player-form .player-position-field,
+.add-player-form .add-player-submit {
+  grid-column: 1 / -1;
 }
 .add-player-form .field {
   min-width: 0;
@@ -1346,12 +1353,6 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   .add-player-form {
     grid-template-columns: minmax(58px, .55fr) minmax(90px, 1fr) auto auto;
   }
-  .add-player-form .field:nth-child(5) {
-    grid-column: 1 / 3;
-  }
-  .add-player-form .button {
-    grid-column: 3 / 5;
-  }
 }
 
 @media (max-width: 1024px) {
@@ -1362,8 +1363,8 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   .add-player-form > :nth-child(2) { grid-area: 1 / 2; }
   .add-player-form > :nth-child(3) { grid-area: 2 / 1; }
   .add-player-form > :nth-child(4) { grid-area: 2 / 2; }
-  .add-player-form > :nth-child(5) { grid-area: 3 / 1; }
-  .add-player-form > :nth-child(6) { grid-area: 3 / 2; }
+  .add-player-form > .player-position-field { grid-area: 3 / 1 / 4 / 3; }
+  .add-player-form > .add-player-submit { grid-area: 4 / 1 / 5 / 3; }
 }
 
 @media (max-width: 560px) {
@@ -1374,11 +1375,11 @@ body[data-device="desktop"] .form-grid { grid-template-columns: repeat(4, minmax
   .add-player-form .check-field {
     grid-row: auto;
   }
-  .add-player-form .field:nth-child(5) {
-    grid-column: 1 / 2;
+  .add-player-form .player-position-field {
+    grid-column: 1 / -1;
   }
-  .add-player-form .button {
-    grid-column: 2 / 3;
-    grid-row: 3;
+  .add-player-form .add-player-submit {
+    grid-column: 1 / -1;
+    grid-row: auto;
   }
 }
