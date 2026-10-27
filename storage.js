@@ -56,6 +56,7 @@ const MAX_TOURNAMENTS = 100;
 const MAX_AUDIT_ENTRIES = 1_000_000;
 const MAX_RULE_PLUGINS = 100;
 const MAX_EVENTS_PER_SET = 2_000;
+const MAX_SET_LIBEROS = 2;
 const OFFICIAL_ROLES = ["firstReferee", "secondReferee", "thirdReferee", "challengeReferee", "scorer", "assistantScorer", "lineJudge1", "lineJudge2", "lineJudge3", "lineJudge4"];
 let databasePromise;
 let persistedMatches = new Map();
@@ -372,7 +373,7 @@ function validateEvent(event, validTeamIds) {
       && isText(event.note || "", 120);
   }
   if (event.type === "rally-play") {
-    return ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "error", "other"].includes(event.playKind)
+    return ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "feint", "error", "other"].includes(event.playKind)
       && ["success", "point", "error", "touch", "effective", "excellent", "good", "other"].includes(event.outcome)
       && (event.playerId === null || isText(event.playerId, 80))
       && (event.attackZone === undefined
@@ -489,12 +490,18 @@ export function validateMatch(match) {
     if (!isPlainObject(set) || set.number !== index + 1 || !teamIds.has(set.initialServiceTeamId)
       || !isPlainObject(set.startingLineups) || !Array.isArray(set.startingLineups[match.teams[0].id])
       || !Array.isArray(set.startingLineups[match.teams[1].id]) || !Array.isArray(set.events)
+      || (set.startingLiberoIds !== undefined && !isPlainObject(set.startingLiberoIds))
       || set.events.length > MAX_EVENTS_PER_SET || !set.events.every((event) => validateEvent(event, teamIds))) return false;
     for (const team of match.teams) {
       const lineup = set.startingLineups[team.id];
       const playerIds = team.players.map((player) => player.id);
       const assigned = lineup.filter(Boolean);
       if (lineup.length > 9 || new Set(assigned).size !== assigned.length || assigned.some((id) => !playerIds.includes(id))) return false;
+      const assignedLiberos = set.startingLiberoIds?.[team.id];
+      if (assignedLiberos !== undefined && (!Array.isArray(assignedLiberos)
+        || assignedLiberos.length > MAX_SET_LIBEROS
+        || new Set(assignedLiberos).size !== assignedLiberos.length
+        || assignedLiberos.some((id) => !team.players.some((player) => player.id === id && player.isLibero)))) return false;
     }
     for (const event of set.events) {
       if (event.type === "score"

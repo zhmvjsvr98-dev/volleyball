@@ -13,7 +13,7 @@ import {
 
 const byId = (id) => document.getElementById(id);
 const MAX_STORE_BACKUP_BYTES = 200_000_000;
-const MAX_LIBEROS = 2;
+const MAX_ROTATION_LIBEROS = 2;
 const MAX_ROSTER_PHOTO_BYTES = 25_000_000;
 let photoReadInProgress = false;
 const elements = {
@@ -70,7 +70,7 @@ const officialRoles = [
   ["lineJudge3", "ラインジャッジ3"],
   ["lineJudge4", "ラインジャッジ4"],
 ];
-const rallyKinds = ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "error", "other"];
+const rallyKinds = ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "feint", "error", "other"];
 const rallyOutcomes = ["success", "point", "error", "touch", "effective", "excellent", "good", "other"];
 const builtInRuleProfiles = {
   standard: { id: "standard", name: "標準（6人制・一般）", settings: { matchProfile: "six", category: "一般", division: "男子", bestOf: 5, regularTarget: 25, finalTarget: 15 } },
@@ -85,6 +85,8 @@ let pendingScoreTeamId;
 let store;
 let currentMatch;
 let pendingSetSetup = null;
+let quickRallyTeamId = "";
+let quickRallyPlayerId = "";
 let saveTimer;
 let dirty = false;
 let saveRevision = 0;
@@ -2818,9 +2820,6 @@ function registerPhotoPlayers() {
   if (team.players.length + selected.length > currentMatch.rules.rosterLimit) {
     errors.push(`登録できる選手数の上限（${currentMatch.rules.rosterLimit}名）を超えます。`);
   }
-  if (team.players.filter((player) => player.isLibero).length + selected.filter((row) => row.isLibero).length > MAX_LIBEROS) {
-    errors.push(`リベロは${MAX_LIBEROS}人まで登録できます。`);
-  }
   if (selected.filter((row) => row.isCaptain).length > 1) errors.push("キャプテンは1人だけ選択してください。");
   if (errors.length) {
     byId("roster-photo-status").textContent = errors.slice(0, 6).join(" / ");
@@ -2866,6 +2865,7 @@ function bindRosterPhotoImport() {
 function renderScoreboard() {
   const set = currentSet();
   const [teamA, teamB] = currentMatch.teams;
+  const displayTeams = hasCourtSidesSwapped(set) ? [teamB, teamA] : [teamA, teamB];
   const scoreA = getScore(set, teamA.id);
   const scoreB = getScore(set, teamB.id);
   const result = getSetResult(currentMatch, set);
@@ -2929,7 +2929,11 @@ function renderScoreboard() {
     );
     middle.append(probability);
   }
-  elements.scoreboard.append(teamScore(teamA, scoreA, 0), middle, teamScore(teamB, scoreB, 1));
+  elements.scoreboard.append(
+    teamScore(displayTeams[0], getScore(set, displayTeams[0].id), currentMatch.teams.indexOf(displayTeams[0])),
+    middle,
+    teamScore(displayTeams[1], getScore(set, displayTeams[1].id), currentMatch.teams.indexOf(displayTeams[1])),
+  );
 
   elements.state.textContent = matchWinner
     ? `試合終了：${getTeam(matchWinner.teamId).name} 勝利`
@@ -2999,6 +3003,7 @@ function getVideoEventKind(event) {
   const kind = event.statPlayKind || event.playKind || event.playType;
   if (kind === "back-attack" || kind === "backAttack") return "backAttack";
   if (["serveReception", "reception", "attackReception"].includes(kind)) return "reception";
+  if (kind === "feint") return "attack";
   return ["attack", "block", "serve", "reception"].includes(kind) ? kind : "";
 }
 
@@ -4022,6 +4027,27 @@ function renderCourtChange() {
     : "小学生3セットマッチの第3セットでのみ発生します。";
 }
 
+function hasCourtSidesSwapped(set = currentSet()) {
+  const setIndex = currentMatch.sets.indexOf(set);
+  if (setIndex < 0) return false;
+  const courtChangeCount = currentMatch.sets
+    .slice(0, setIndex + 1)
+    .reduce((count, matchSet) => count
+      + matchSet.events.filter((event) => event.type === "court-change").length, 0);
+  return courtChangeCount % 2 === 1;
+}
+
+function getStartingLiberoIds(set, team) {
+  const assigned = set.startingLiberoIds?.[team.id];
+  if (!Array.isArray(assigned)) {
+    return team.players.filter((player) => player.isLibero)
+      .slice(0, MAX_ROTATION_LIBEROS).map((player) => player.id);
+  }
+  return [...new Set(assigned.filter((playerId) =>
+    team.players.some((player) => player.id === playerId && player.isLibero)))]
+    .slice(0, MAX_ROTATION_LIBEROS);
+}
+
 function renderRotationView(containerId, set, editable) {
   const container = byId(containerId);
   container.replaceChildren();
@@ -4054,11 +4080,12 @@ function renderRotationView(containerId, set, editable) {
       select.append(empty);
       const assignedPlayerIds = new Set(lineup.filter((id) => id && id !== playerId));
       team.players
-        .filter((player) => !assignedPlayerIds.has(player.id))
+        .filter((player) => (!player.isLibero || player.id === playerId) && !assignedPlayerIds.has(player.id))
         .forEach((player) => {
           const option = document.createElement("option");
           option.value = player.id;
           option.textContent = `#${player.number} ${player.name}`;
+          option.disabled = player.isLibero;
           select.append(option);
         });
       select.value = playerId;
@@ -4068,11 +4095,14 @@ function renderRotationView(containerId, set, editable) {
     return slot;
   };
 
-  const makeSide = (teamIndex) => {
-    const team = currentMatch.teams[teamIndex];
-    const home = teamIndex === 0;
+  const displayTeams = containerId === "match-rotation-layout" && hasCourtSidesSwapped(set)
+    ? [...currentMatch.teams].reverse()
+    : currentMatch.teams;
+  const makeSide = (team, courtSideIndex) => {
+    const teamIndex = currentMatch.teams.indexOf(team);
+    const home = courtSideIndex === 0;
     const section = document.createElement("section");
-    section.className = `rotation-side ${home ? "side-home team-a" : "side-away team-b"}`;
+    section.className = `rotation-side ${home ? "side-home court-left" : "side-away court-right"} ${teamIndex === 0 ? "team-a" : "team-b"}`;
     const heading = document.createElement("h2");
     const turns = servingState.rotations[team.id] || 0;
     heading.textContent = `${team.name || `チーム ${home ? "A" : "B"}`} — ${courtRotation ? `ローテーション ${turns}回` : "サーブ順"}`;
@@ -4100,6 +4130,56 @@ function renderRotationView(containerId, set, editable) {
       });
       section.append(order);
     }
+    const registeredLiberoIds = getStartingLiberoIds(set, team);
+    const registeredLiberoPlayers = registeredLiberoIds
+      .map((playerId) => team.players.find((player) => player.id === playerId))
+      .filter(Boolean);
+    if (editable || team.players.some((player) => player.isLibero) || registeredLiberoPlayers.length) {
+      const liberoSection = document.createElement("div");
+      liberoSection.className = "rotation-libero-section";
+      const liberoHeading = document.createElement("h3");
+      liberoHeading.textContent = `セット登録リベロ（最大${MAX_ROTATION_LIBEROS}名）`;
+      liberoSection.append(liberoHeading);
+      if (editable) {
+        const fields = document.createElement("div");
+        fields.className = "rotation-libero-fields";
+        Array.from({ length: MAX_ROTATION_LIBEROS }, (_, index) => {
+          const label = document.createElement("label");
+          label.className = "field";
+          const labelText = document.createElement("span");
+          labelText.textContent = `リベロ ${index + 1}`;
+          const select = document.createElement("select");
+          select.dataset.rotationLiberoTeam = team.id;
+          select.dataset.currentLiberoPosition = String(index);
+          select.setAttribute("aria-label", `${team.name} リベロ ${index + 1}`);
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "選択なし";
+          select.append(empty);
+          const otherSelection = registeredLiberoIds[index === 0 ? 1 : 0];
+          team.players.filter((player) => player.isLibero && player.id !== otherSelection)
+            .forEach((player) => {
+              const option = document.createElement("option");
+              option.value = player.id;
+              option.textContent = `#${player.number} ${player.name}`;
+              select.append(option);
+            });
+          select.value = registeredLiberoIds[index] || "";
+          select.disabled = !team.players.some((player) => player.isLibero);
+          label.append(labelText, select);
+          fields.append(label);
+        });
+        liberoSection.append(fields);
+      } else {
+        const summary = document.createElement("p");
+        summary.className = "rotation-libero-summary";
+        summary.textContent = registeredLiberoPlayers.length
+          ? registeredLiberoPlayers.map((player) => `#${player.number} ${player.name}`).join("、")
+          : "選択なし";
+        liberoSection.append(summary);
+      }
+      section.append(liberoSection);
+    }
     return section;
   };
 
@@ -4107,7 +4187,7 @@ function renderRotationView(containerId, set, editable) {
   net.className = "court-net";
   net.setAttribute("aria-label", "ネット");
   net.textContent = "NET";
-  container.append(makeSide(0), net, makeSide(1));
+  container.append(makeSide(displayTeams[0], 0), net, makeSide(displayTeams[1], 1));
   return servingState;
 }
 
@@ -4131,8 +4211,8 @@ function renderRotation() {
     ? `第${setupSetNumber}セット ローテーション・サーブ順設定`
     : "ローテーション・サーブ順設定";
   byId("rotation-page-description").textContent = pendingSetSetup
-    ? `第${setupSetNumber}セットのコート配置と最初のサーブを設定し、開始確認へ進みます。`
-    : "試合開始前に両チームの選手位置と第1サーバーを登録します。コート中央のネットをはさんで表示します。";
+    ? `第${setupSetNumber}セットのコート配置・登録リベロと最初のサーブを設定し、開始確認へ進みます。`
+    : "試合開始前に両チームの選手位置・登録リベロと第1サーバーを設定します。";
   byId("rotation-next-confirm").hidden = !pendingSetSetup;
   byId("rotation-cancel-setup").hidden = !pendingSetSetup;
   byId("rotation-next-staff").hidden = Boolean(pendingSetSetup);
@@ -4175,8 +4255,8 @@ function renderRotation() {
   renderServiceOrderStatus(expectedServerId);
 
   byId("rotation-mode-note").textContent = usesCourtRotation(currentMatch)
-    ? "選手を各位置に割り当ててください。ネットが画面中央にあり、チームAは左側、チームBは右側です。第1サーバーは位置1です。"
-    : "この競技形式ではコート上のローテーションは行わず、登録したサーブ順を表示します。順番に選手を割り当ててください。";
+    ? "選手を各位置に割り当ててください。リベロはコート配置とは別に、各チーム最大2名まで登録できます。ネットが画面中央にあり、チームAは左側、チームBは右側です。"
+    : "この競技形式ではコート上のローテーションは行わず、登録したサーブ順を表示します。順番に選手を割り当て、リベロは別欄に各チーム最大2名まで登録してください。";
 }
 
 function renderServiceOrderStatus(expectedPlayerId = getExpectedServerPlayerId(currentSet())) {
@@ -4352,6 +4432,115 @@ function renderRallyEntryForm() {
   if (recordButton) recordButton.disabled = !matchHasStarted() || !canScore(currentMatch) || activePlayers.length === 0;
 }
 
+function renderQuickRallyEntry() {
+  const container = byId("quick-rally-entry");
+  if (!container) return;
+  container.replaceChildren();
+
+  const servingTeamId = getServingState(currentMatch, currentSet()).server;
+  if (!currentMatch.teams.some((team) => team.id === quickRallyTeamId)) {
+    quickRallyTeamId = servingTeamId || currentMatch.teams[0].id;
+  }
+  const team = getTeam(quickRallyTeamId);
+  const players = getCourtPlayers(quickRallyTeamId);
+  if (!players.some((player) => player.id === quickRallyPlayerId)) {
+    quickRallyPlayerId = players[0]?.id || "";
+  }
+
+  const teamField = document.createElement("div");
+  teamField.className = "quick-rally-field";
+  teamField.append(Object.assign(document.createElement("span"), {
+    className: "quick-rally-label",
+    textContent: "チーム",
+  }));
+  const teams = document.createElement("div");
+  teams.className = "quick-rally-team-buttons";
+  currentMatch.teams.forEach((item, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `mini-select-button${item.id === quickRallyTeamId ? " selected" : ""}`;
+    button.textContent = item.name || `チーム ${index === 0 ? "A" : "B"}`;
+    button.setAttribute("aria-pressed", String(item.id === quickRallyTeamId));
+    button.addEventListener("click", () => {
+      quickRallyTeamId = item.id;
+      quickRallyPlayerId = getCourtPlayers(item.id)[0]?.id || "";
+      renderQuickRallyEntry();
+    });
+    teams.append(button);
+  });
+  teamField.append(teams);
+
+  const playerField = document.createElement("div");
+  playerField.className = "quick-rally-field";
+  playerField.append(Object.assign(document.createElement("span"), {
+    className: "quick-rally-label",
+    textContent: `${team?.name || "チーム"} 選手`,
+  }));
+  const playersGroup = document.createElement("div");
+  playersGroup.className = "quick-rally-player-buttons";
+  players.forEach((player) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `mini-select-button${player.id === quickRallyPlayerId ? " selected" : ""}`;
+    button.textContent = `#${player.number}`;
+    button.title = player.name;
+    button.setAttribute("aria-label", `#${player.number} ${player.name}`);
+    button.setAttribute("aria-pressed", String(player.id === quickRallyPlayerId));
+    button.addEventListener("click", () => {
+      quickRallyPlayerId = player.id;
+      renderQuickRallyEntry();
+    });
+    playersGroup.append(button);
+  });
+  playerField.append(playersGroup);
+
+  const actionsField = document.createElement("div");
+  actionsField.className = "quick-rally-field quick-rally-actions-field";
+  actionsField.append(Object.assign(document.createElement("span"), {
+    className: "quick-rally-label",
+    textContent: "プレーをタップして記録（得点・ミスは自動反映）",
+  }));
+  const actions = document.createElement("div");
+  actions.className = "quick-rally-action-buttons";
+  [
+    ["serve", "point", "サービスエース"],
+    ["serve", "error", "サーブミス"],
+    ["serveReception", "good", "サーブレシーブ成功（良）"],
+    ["serveReception", "excellent", "サーブレシーブ成功（優）"],
+    ["serveReception", "error", "サーブレシーブミス"],
+    ["set", "success", "トス成功"],
+    ["set", "error", "トスミス"],
+    ["attack", "success", "アタック成功"],
+    ["attack", "error", "アタックミス"],
+    ["attack", "point", "アタック得点"],
+    ["backAttack", "success", "バックアタック成功"],
+    ["backAttack", "error", "バックアタックミス"],
+    ["backAttack", "point", "バックアタック得点"],
+    ["block", "touch", "ブロックタッチ"],
+    ["block", "point", "ブロック得点"],
+    ["feint", "success", "フェイント成功"],
+    ["feint", "error", "フェイントミス"],
+    ["feint", "point", "フェイント得点"],
+    ["attackReception", "good", "アタックレシーブ成功（良）"],
+    ["attackReception", "excellent", "アタックレシーブ成功（優）"],
+    ["attackReception", "error", "アタックレシーブミス"],
+  ].forEach(([playKind, outcome, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button button-secondary quick-rally-action";
+    button.textContent = label;
+    button.disabled = !matchHasStarted() || !canScore(currentMatch) || !quickRallyPlayerId;
+    button.addEventListener("click", () =>
+      recordRallyPlay(playKind, outcome, quickRallyTeamId, quickRallyPlayerId));
+    actions.append(button);
+  });
+  actionsField.append(actions);
+  const note = document.createElement("p");
+  note.className = "event-help quick-rally-note";
+  note.textContent = "コース・備考なども残す場合は、下の「ラリー・イベント入力」で詳細記録できます。";
+  container.append(teamField, playerField, actionsField, note);
+}
+
 function showScoreDialog(teamId) {
   if (!canScore(currentMatch)) return;
   pendingScoreTeamId = teamId;
@@ -4407,10 +4596,12 @@ function addDetailedScore() {
   clearError();
 }
 
-function recordRallyPlay() {
+function recordRallyPlay(playKindOverride, outcomeOverride, teamIdOverride, playerIdOverride) {
   if (!matchHasStarted() || !canScore(currentMatch)) return;
+  const isQuickEntry = Boolean(playKindOverride);
 
   const practicalKind =
+    playKindOverride ||
     byId("rally-kind")?.value ||
     byId("rally-kind-group")
       ?.querySelector(".mini-select-button.selected")
@@ -4418,16 +4609,17 @@ function recordRallyPlay() {
     "serve";
 
   const practicalOutcome =
+    outcomeOverride ||
     byId("rally-outcome")?.value ||
     byId("rally-outcome-group")
       ?.querySelector(".mini-select-button.selected")
       ?.dataset.value ||
     "success";
 
-  const team = getTeam(byId("rally-team").value);
+  const team = getTeam(teamIdOverride || byId("rally-team").value);
 
   const playerId =
-    byId("rally-player").value || null;
+    playerIdOverride || byId("rally-player").value || null;
 
   const playKind = practicalKind;
   const outcome = practicalOutcome;
@@ -4457,14 +4649,13 @@ function recordRallyPlay() {
     return;
   }
 
-  const note =
-    byId("rally-note").value
+  const note = (isQuickEntry ? "" : byId("rally-note").value)
       .trim()
       .slice(0, 120);
-  const attackZone = ["attack", "backAttack"].includes(playKind)
+  const attackZone = !isQuickEntry && ["attack", "backAttack"].includes(playKind)
     ? Number(byId("rally-attack-zone").value) || null
     : null;
-  const courseZone = ["serve", "reception", "serveReception", "attackReception"].includes(playKind)
+  const courseZone = !isQuickEntry && ["serve", "reception", "serveReception", "attackReception"].includes(playKind)
     ? Number(byId("rally-course-zone").value) || null
     : null;
 
@@ -4481,12 +4672,16 @@ function recordRallyPlay() {
 
   // 得点 → 自チームへ加点
   if (outcome === "point") {
+    const statPlayKind = getPerformanceKind(rallyEvent);
 
     addEvent({
       type: "score",
       teamId: team.id,
       delta: 1,
       playType: "other",
+      ...(["serve", "attack", "backAttack", "block"].includes(statPlayKind)
+        ? { statPlayKind }
+        : {}),
       playerId,
       faultPlayerId: null,
       note: `ラリー記録: ${playKind}`,
@@ -4519,9 +4714,11 @@ function recordRallyPlay() {
     }
   }
 
-  byId("rally-note").value = "";
-  byId("rally-attack-zone").value = "";
-  byId("rally-course-zone").value = "";
+  if (!isQuickEntry) {
+    byId("rally-note").value = "";
+    byId("rally-attack-zone").value = "";
+    byId("rally-course-zone").value = "";
+  }
 
   clearError();
 }
@@ -4549,6 +4746,7 @@ function render() {
   }
   renderMatchTimer();
   renderRotation();
+  renderQuickRallyEntry();
   applyTeamColors();
   byId("undo-event").disabled = currentSet().events.length === 0;
   renderVisibleSupplementalViews();
@@ -4867,6 +5065,7 @@ function getPerformanceStats(team, sets = currentMatch.sets) {
 
 function getPerformanceKind(event) {
   if (["serveReception", "reception", "attackReception"].includes(event.playKind)) return "reception";
+  if (event.playKind === "feint") return "attack";
   return event.playKind;
 }
 
@@ -4881,7 +5080,7 @@ function getEffectivePointEvents(set) {
 function getPointSource(event) {
   const kind = event.statPlayKind || event.playType;
   if (["serve"].includes(kind)) return "サーブ";
-  if (["attack", "backAttack", "back-attack"].includes(kind)) return "アタック";
+  if (["attack", "backAttack", "back-attack", "feint"].includes(kind)) return "アタック";
   if (kind === "block") return "ブロック";
   if (["opponent-error", "penalty"].includes(kind)) return "相手ミス";
   return "その他";
@@ -5789,7 +5988,8 @@ function renderConfirmationRotation() {
   detail.textContent = `最初のサーブ: ${server?.name || "未設定"}${player ? ` #${player.number} ${player.name}` : "（選手未割当）"}`;
   summary.append(detail);
   currentMatch.teams.forEach((team) => {
-    const liberoNumbers = team.players.filter((member) => member.isLibero)
+    const liberoNumbers = getStartingLiberoIds(set, team).map((playerId) =>
+      team.players.find((member) => member.id === playerId)).filter(Boolean)
       .map((member) => `#${member.number} ${member.name}`)
       .join("、") || "登録なし";
     const libero = document.createElement("p");
@@ -5810,15 +6010,17 @@ function getRequiredStartChecks() {
       ...currentMatch.teams.flatMap((team) => {
         const lineup = set.startingLineups[team.id] || [];
         const assigned = lineup.slice(0, requiredSlots);
-        const liberoNumbers = team.players.filter((player) => player.isLibero)
-          .map((player) => `#${player.number}`)
+        const liberoIds = getStartingLiberoIds(set, team);
+        const liberoNumbers = liberoIds.map((playerId) => team.players.find((player) => player.id === playerId))
+          .filter(Boolean).map((player) => `#${player.number}`)
           .join("、") || "登録なし";
+        const hasRosterLibero = team.players.some((player) => player.isLibero);
         return [
           [`${team.name}の第${set.number}セット配置`, assigned.length === requiredSlots
             && assigned.every(Boolean)
             && new Set(assigned).size === requiredSlots
-            && assigned.every((playerId) => team.players.some((player) => player.id === playerId))],
-          [`${team.name}のリベロ背番号（${liberoNumbers}）`, true],
+            && assigned.every((playerId) => team.players.some((player) => player.id === playerId && !player.isLibero))],
+          [`${team.name}のセット登録リベロ（${liberoNumbers}）`, !hasRosterLibero || liberoIds.length > 0],
         ];
       }),
     ];
@@ -5838,8 +6040,16 @@ function getRequiredStartChecks() {
     [`${teamB.name}の選手登録`, teamB.players.length >= requiredSlots],
     [`${teamA.name}のキャプテン登録`, teamA.players.some((player) => player.isCaptain)],
     [`${teamB.name}のキャプテン登録`, teamB.players.some((player) => player.isCaptain)],
-    [`${teamA.name}のローテーション・サーブ順`, teamA.rotationLineup.slice(0, requiredSlots).every(Boolean)],
-    [`${teamB.name}のローテーション・サーブ順`, teamB.rotationLineup.slice(0, requiredSlots).every(Boolean)],
+    ...currentMatch.teams.map((team) => {
+      const set = currentMatch.sets[0];
+      const lineup = set?.startingLineups?.[team.id]?.length ? set.startingLineups[team.id] : team.rotationLineup;
+      const assigned = lineup.slice(0, requiredSlots);
+      return [`${team.name}のローテーション・サーブ順`,
+        assigned.length === requiredSlots
+          && new Set(assigned).size === requiredSlots
+          && assigned.every((playerId) =>
+            team.players.some((player) => player.id === playerId && !player.isLibero))];
+    }),
     ["第1サーバー設定", Boolean(getExpectedServerPlayerId(currentMatch.sets[0], getServingState(currentMatch, currentMatch.sets[0])))],
     ["ファーストレフェリー", Boolean(info.officials.firstReferee.name.trim())],
     ["セカンドレフェリー", Boolean(info.officials.secondReferee.name.trim())],
@@ -5851,13 +6061,21 @@ function getRequiredStartChecks() {
     ["第1セットのコート配置・サーブ順", (() => {
       const set = currentMatch.sets[0];
       if (!set) return false;
-      return currentMatch.teams.every((team) => team.rotationLineup.slice(0, requiredSlots).every(Boolean));
+      return currentMatch.teams.every((team) => {
+        const lineup = set.startingLineups?.[team.id]?.length ? set.startingLineups[team.id] : team.rotationLineup;
+        const assigned = lineup.slice(0, requiredSlots);
+        return assigned.length === requiredSlots && new Set(assigned).size === requiredSlots
+          && assigned.every((playerId) => team.players.some((player) => player.id === playerId && !player.isLibero));
+      });
     })()],
     ...currentMatch.teams.map((team) => {
-      const liberoNumbers = team.players.filter((player) => player.isLibero)
-        .map((player) => `#${player.number}`)
+      const set = currentMatch.sets[0];
+      const liberoIds = getStartingLiberoIds(set, team);
+      const liberoNumbers = liberoIds.map((playerId) => team.players.find((player) => player.id === playerId))
+        .filter(Boolean).map((player) => `#${player.number}`)
         .join("、") || "登録なし";
-      return [`${team.name}のリベロ背番号（${liberoNumbers}）`, true];
+      return [`${team.name}のセット登録リベロ（${liberoNumbers}）`,
+        !team.players.some((player) => player.isLibero) || liberoIds.length > 0];
     }),
   ];
   return startChecks;
@@ -7011,10 +7229,14 @@ function startNextSet() {
   const startingLineups = Object.fromEntries(currentMatch.teams.map((team) => [
     team.id, [...team.rotationLineup],
   ]));
+  const startingLiberoIds = Object.fromEntries(currentMatch.teams.map((team) => [
+    team.id, getStartingLiberoIds(currentSet(), team),
+  ]));
   pendingSetSetup = {
     number: currentMatch.sets.length + 1,
     initialServiceTeamId,
     startingLineups,
+    startingLiberoIds,
     startedAt: "",
     endedAt: "",
     events: [],
@@ -7116,10 +7338,6 @@ function addPlayer(form) {
   }
   if (team.players.length >= currentMatch.rules.rosterLimit) {
     showError(`1チームに登録できる選手数の上限（${currentMatch.rules.rosterLimit}名）に達しています。`);
-    return;
-  }
-  if (libero && team.players.filter((player) => player.isLibero).length >= MAX_LIBEROS) {
-    showError(`リベロは${MAX_LIBEROS}人まで登録できます。`);
     return;
   }
   const player = { id: createId(), number, name: name.slice(0, 60), isCaptain: captain, isLibero: libero, position };
@@ -8004,10 +8222,8 @@ function bindEvents() {
   });
   byId("cancel-score-detail").addEventListener("click", () => elements.scoreDialog.close());
   byId("toggle-match-event-entry").addEventListener("click", () => {
-    const details = byId("live-event-entry");
-    if (!details) return showError("試合中のイベント入力欄を読み込めませんでした。");
-    details.open = true;
-    details.scrollIntoView({ behavior: "smooth", block: "start" });
+    navigateTo("events");
+    byId("live-event-entry-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   });
   byId("initial-server").addEventListener("change", () => {
     if (matchHasStarted()) return;
@@ -8022,6 +8238,28 @@ function bindEvents() {
       if (select.value && select.value !== "custom") {
         updateTeamColor(select.dataset.teamColor, select.value, select.dataset.teamColorRole);
       }
+      return;
+    }
+    if (select instanceof HTMLSelectElement && select.matches("select[data-rotation-libero-team]")) {
+      const team = getTeam(select.dataset.rotationLiberoTeam);
+      if (!team) return;
+      const setupSet = pendingSetSetup || currentMatch.sets[0];
+      const position = Number(select.dataset.currentLiberoPosition);
+      const currentIds = getStartingLiberoIds(setupSet, team);
+      const selectedIds = Array.from({ length: MAX_ROTATION_LIBEROS }, (_, index) =>
+        index === position ? select.value : currentIds[index] || "").filter(Boolean);
+      if (new Set(selectedIds).size !== selectedIds.length
+        || selectedIds.some((playerId) => !team.players.some((player) => player.id === playerId && player.isLibero))) {
+        showError("セットに登録できるリベロは、登録済み選手から重複なく2名までです。");
+        renderRotation();
+        return;
+      }
+      setupSet.startingLiberoIds ||= {};
+      setupSet.startingLiberoIds[team.id] = selectedIds;
+      clearError();
+      renderRotation();
+      renderCurrentPageSummaries();
+      scheduleSave(true);
       return;
     }
     if (!(select instanceof HTMLSelectElement) || !select.matches("[data-rotation-team]")) return;

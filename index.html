@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=64">
+  <link rel="stylesheet" href="./style.css?v=68">
   <script src="./version.js"></script>
   <script type="module" src="./app.js"></script>
 </head>
@@ -204,16 +204,17 @@
             </figure>
             <ol class="manual-instructions">
               <li>「メンバー登録」で、チームごとに背番号と苗字・名前を入力して<strong>「選手を追加」</strong>を押します。登録後は苗字と名前の間に空白を入れた氏名で表示されます。試合に出る選手を登録し、キャプテンにはチェックを付けます。</li>
-              <li>役割は、キャプテン（C）・リベロ（L・1チーム2名まで、キャプテンと兼任可）に加え、ポジション（OH／MB／S／OP）を選べます。コート内のリベロは1名までです。</li>
+              <li>役割は、キャプテン（C）・リベロ（L・登録人数に個別上限なし、キャプテンと兼任可）に加え、ポジション（OH／MB／S／OP）を選べます。チーム全体の登録人数は競技条件の上限に従い、コート内のリベロは1名までです。</li>
               <li>選手・リベロのユニフォーム色は、色名の一覧から素早く選べます。一覧にない色は隣のカラーピッカーで指定できます。</li>
               <li><b>写真から一括登録（任意）：</b>名簿や顔写真付きパンフレットから登録する場合は、ページ下部の「写真からメンバーを一括登録」を使います。</li>
               <li>登録先チームを選び、次のどちらかで写真を指定します。<br>・<strong>「撮影して読み取る」</strong>：スマートフォン・タブレットでカメラが起動します。撮影して「使用」を押すと、そのまま読み取りが始まります（パソコンでは通常のファイル選択になります）。<br>・<strong>「ファイルを選択」→「写真を読み取る」</strong>：撮影済みの写真やファイルから選びます。</li>
               <li>元画像、明るさ・コントラスト補正版、写真や色付き背景を抑えた画像を読み取り、結果の表を表示します。数字が認識できない行は背番号が空欄になることがあるため、表の背番号・氏名欄をタップして直接修正し、C・L・ポジションも選び直してください。不要な行は「×」で削除、足りない選手は「行を追加」で入力します。写真読み取りでは氏名全体を修正し、手入力では苗字・名前を分けて入力します。読み取り方法を増やしても誤認識は起こるため、登録前に必ず照合してください。</li>
-              <li>登録しない行は「登録」のチェックを外し、<strong>「選択した選手を登録」</strong>を押します。背番号の重複、人数上限、リベロ3名以上、キャプテン複数などがあると、1名も登録されずに理由が表示されます。直してからもう一度押してください。</li>
+              <li>登録しない行は「登録」のチェックを外し、<strong>「選択した選手を登録」</strong>を押します。背番号の重複、チーム人数上限、キャプテン複数などがあると、1名も登録されずに理由が表示されます。直してからもう一度押してください。</li>
               <li>撮影のコツ：顔写真付きパンフレットも読み取りを試せます。文字が小さい場合は選手紹介欄を大きく撮影・切り抜き、背番号と氏名がはっきり写るようにしてください。明るい場所で正面から撮り、影・反射・斜めを避けます。写真だけのページや、背番号と氏名が離れた複雑な紙面は読み取れないことがあります。必ず結果を確認してください。</li>
               <li>写真は端末内だけで処理し、保存や送信はしません。初回は読み取り用データ（約6MB）を読み込むため、通信が必要です。読み取りに失敗した場合は手入力で登録できます。試合記録の開始後は登録できません。</li>
               <li>「ローテーション設定」へ進み、最初にサーブをするチームを選びます。</li>
-              <li>各位置の「選手を割当」を開いて選手を選びます。いったん別の位置に割り当てた選手は、重複防止のため他の位置の候補に表示されません。必要な位置をすべて埋めます。</li>
+              <li>各位置の「選手を割当」を開いて選手を選びます。リベロ以外の選手をコート配置に割り当て、いったん別の位置に割り当てた選手は重複防止のため他の位置の候補に表示されません。必要な位置をすべて埋めます。</li>
+              <li>各チーム欄の「セット登録リベロ」で、そのセットに登録するリベロを最大2名選びます。メンバー登録したリベロが3名以上いても、試合ごと・セットごとに出場登録する選手を選択できます。</li>
               <li>図の中央がネットです。6人制ではチームAの位置1は左下、チームBの位置1は右上です。各位置の番号と選手が大会のオーダーどおりか確認します。9人制などでは画面に並ぶサーブ順も確認します。</li>
               <li>「審判登録」へ進み、必要な審判・記録員の氏名を入力します。サードレフェリーとチャレンジレフェリーは任意項目で、未入力でも試合を開始できます。開始前に不足項目が表示されたら、その項目の画面に戻って入力します。</li>
             </ol>
@@ -241,7 +242,7 @@
           </section>
 
           <section class="manual-section">
-            <div class="manual-section-heading"><span class="manual-step">05</span><div><h3>試合画面で得点を記録する</h3><p>得点ボタンを押すと、得点のプレー内容を続けて入力します。</p></div></div>
+            <div class="manual-section-heading"><span class="manual-step">05</span><div><h3>試合画面で得点を記録する</h3><p>通常の得点入力に加え、ラリー高速入力の定型ボタンから直接記録できます。</p></div></div>
             <figure class="manual-figure">
               <div class="manual-screen" role="img" aria-label="試合画面イメージ。中央ネット配置、チームA対チームBの得点、プラス1ボタン、ラリー記録ボタンを表示">
                 <div class="mock-header"><b>試合画面 · 第1セット</b><span class="mock-timer">サーバー: チーム A #1</span></div>
@@ -256,6 +257,7 @@
               <li>表示された画面で得点の理由（アタック、サーブ、相手のミスなど）を選び、必要な選手を選んで確定します。</li>
               <li>得点はスコアに反映され、サーバーやセットの状況も更新されます。得点した側が正しいかを毎回確認してください。</li>
               <li>サーブ順も照合する場合は、得点を記録する前に「実際にサーブした選手」を選びます。登録順と異なる場合は、その得点の違反可能性が履歴に残ります。</li>
+              <li>速いラリーでは、試合画面の「ラリー高速入力」でチームと選手を選び、サービスエース、サーブミス、各種レシーブ、トス、アタック、バックアタック、ブロック、フェイントの結果ボタンをタップします。得点・ミスはプレー記録とスコアに反映されます。コースや備考も記録したい場合は、従来の詳細入力を使ってください。</li>
               <li>入力を間違えたときは、次の記録をする前に<strong>「直前の記録を取り消す」</strong>を押します。直前の得点記録を取り消せます。</li>
             </ol>
             <p class="manual-tip"><b>9人制</b> サーブを失敗したら試合画面の「サーブ失敗を記録」を押します。1回目は打ち直し、2回目の失敗で相手に1点が入ります。</p>
@@ -272,13 +274,13 @@
               <figcaption><b>画面イメージ 6</b> ラリーの入力とイベント時系列</figcaption>
             </figure>
             <ol class="manual-instructions">
-              <li>試合画面で<strong>「ラリー・イベント入力を開く」</strong>を押します。</li>
+              <li>試合画面で<strong>「ラリーの詳細入力・訂正を開く」</strong>を押します。</li>
               <li>画面の<strong>1 チーム → 2 コート内の選手 → 3 プレー → 4 結果</strong>の順に選び、「このプレーを記録」を押します。プレーごとに同じ操作を繰り返します。</li>
               <li>ラリーが終わったら、4の結果で<strong>「得点」</strong>または<strong>「失点」</strong>を選んで記録します。「得点」は選んだチームに、「失点」は反対側のチームに1点が自動で加算されます。</li>
               <li>この方法で得点を登録した場合、同じラリーについてスコア画面の「＋1」をもう一度押さないでください。二重に加点されます。</li>
               <li>ラリーの途中経過だけ記録したいときは、結果に「成功」「タッチ」などを選びます。これらは得点を変えません。</li>
             </ol>
-            <p class="manual-tip"><b>かんたんに記録する場合：</b>ラリーの細かい流れを残さず、得点だけ記録したいときは試合画面の「＋1」を使います。ラリー記録の「得点 / 失点」と、試合画面の「＋1」は同じラリーで併用しないでください。</p>
+            <p class="manual-tip"><b>使い分け：</b>速い展開では試合画面の「ラリー高速入力」でプレーと得点を一度に記録し、時間に余裕があるときはこの画面でラリーの流れやコースを詳しく記録します。同じラリーで高速入力と「＋1」を併用すると二重加点になるため、どちらか一方を使ってください。</p>
           </section>
 
           <section class="manual-section">
@@ -774,6 +776,13 @@
           </div>
           <div id="match-rotation-layout" class="rotation-court-layout"></div>
           <div id="scoreboard" class="scoreboard"></div>
+          <section class="quick-rally-panel" aria-label="ラリー高速入力">
+            <div class="quick-rally-heading">
+              <h2>ラリー高速入力</h2>
+              <span>選手を選び、プレーをタップして記録</span>
+            </div>
+            <div id="quick-rally-entry"></div>
+          </section>
           <details class="live-match-metrics">
             <summary><h2>リアルタイム分析</h2></summary>
             <div id="live-performance-metrics" class="live-performance-metrics"></div>
@@ -789,7 +798,7 @@
             <button id="nine-serve-fault" class="button button-secondary" type="button" hidden>9人制: 1回目のサーブ失敗を記録</button>
           </div>
           <div class="set-navigation"><div id="set-strip" class="set-strip" aria-label="セット状況"></div><div class="set-actions"><button id="next-set" class="button button-primary" type="button" hidden>次のセットを開始</button><button id="undo-event" class="button button-secondary" type="button">直前の記録を取り消す</button></div></div>
-          <div class="match-shortcuts"><button id="toggle-match-event-entry" class="button button-secondary" type="button">ラリー・イベント入力を開く</button><button class="button button-secondary" data-go="scoresheet" type="button">スコアシートを見る</button></div>
+          <div class="match-shortcuts"><button id="toggle-match-event-entry" class="button button-secondary" type="button">ラリーの詳細入力・訂正を開く</button><button class="button button-secondary" data-go="scoresheet" type="button">スコアシートを見る</button></div>
         </section>
       </section>
 

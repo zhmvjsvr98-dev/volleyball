@@ -1,2 +1,2 @@
 // 大きな更新は小数点の左側、小さな更新は右側の番号を更新する。
-self.APP_VERSION = "v9.6";
+self.APP_VERSION = "v9.10";
