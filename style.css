@@ -126,7 +126,7 @@ input::placeholder { color: var(--muted); opacity: .72; }
 .check-field input { width: 18px; min-height: 18px; accent-color: var(--brand); }
 .scoring-panel { overflow: hidden; }
 .state-badge { border-radius: 99px; padding: .35rem .7rem; background: var(--surface-soft); color: var(--brand); font-size: .78rem; font-weight: 800; }
-.scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: .75rem; }
+.scoreboard { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: .75rem; position: sticky; top: 0; z-index: 4; background: var(--surface); padding: .35rem 0; }
 .score-team { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 190px; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); text-align: center; }
 .score-team-name { max-width: 100%; overflow-wrap: anywhere; font-weight: 800; font-size: clamp(1rem, 2vw, 1.35rem); }
 .score-team-label { margin-bottom: .2rem; color: var(--team-accent, var(--muted)); font-size: .68rem; font-weight: 900; letter-spacing: .12em; }
@@ -147,6 +147,17 @@ input::placeholder { color: var(--muted); opacity: .72; }
 .quick-rally-action-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: .4rem; }
 .quick-rally-action { min-height: 44px; padding: .4rem; font-size: .72rem; line-height: 1.25; touch-action: manipulation; }
 .quick-rally-action:disabled { opacity: .5; }
+.quick-action-serve { border-color: #1e6fbf; background: #0d2a4a; color: #7ec8ff; }
+.quick-action-reception { border-color: #0f7a6c; background: #0a2e2a; color: #6ee7d8; }
+.quick-action-set { border-color: #7c5a1e; background: #2e240a; color: #f0d48a; }
+.quick-action-attack { border-color: #b03a2e; background: #3a1210; color: #ff9a8a; }
+.quick-action-block { border-color: #5b3a8e; background: #1e1030; color: #c4a8f0; }
+.quick-action-fault { border-color: #8e5a2a; background: #2e1a0a; color: #f0b27a; }
+.quick-action-card { border-color: #c0a020; background: #2e280a; color: #f0e08a; }
+.quick-action-other { border-color: #4a5568; background: #1a202c; color: #a0aec0; }
+.quick-rally-player-buttons .mini-select-button { display: flex; flex-direction: column; align-items: center; gap: .1rem; min-width: 64px; }
+.quick-player-number { font-size: .85rem; font-weight: 900; }
+.quick-player-name { font-size: .62rem; font-weight: 600; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .quick-rally-note { margin: .45rem 0 0; }
 .live-win-probability { display: grid; gap: .1rem; margin-top: .25rem; font-size: .68rem; }
 .live-win-probability strong { color: var(--ink); font-size: .7rem; }
@@ -751,7 +762,7 @@ body.sidebar-collapsed .nav-item span { width: 100%; font-size: 1.05rem; }
 .court-change-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .7rem; margin: .7rem 0; }
 .court-change-status { color: var(--muted); font-size: .78rem; font-weight: 750; }
 .court-change-status.is-due { color: var(--danger); }
-.rotation-court-layout { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); align-items: stretch; gap: .55rem; }
+.rotation-court-layout { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); align-items: stretch; gap: .55rem; position: sticky; top: 0; z-index: 3; background: var(--surface); padding: .35rem 0; }
 .rotation-side { min-width: 0; padding: .65rem; border: 1px solid #263650; border-radius: 8px; background: #0a1326; }
 .rotation-side h2 { margin: 0 0 .55rem; color: #b9d5f5; font-size: .82rem; text-align: center; }
 .rotation-court { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .3rem; }

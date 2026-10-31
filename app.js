@@ -4473,6 +4473,17 @@ function renderQuickMedical() {
   container.append(areaRow);
 }
 
+function getQuickActionCategory(playKind, outcome) {
+  if (["yellowCard", "redCard", "expulsion", "disqualification"].includes(outcome)) return "card";
+  if (["antenna", "delayInService", "screen", "catch", "doubleContact", "fourHits", "netTouch", "overNet", "attackFault", "penetrationFault", "delay"].includes(playKind)) return "fault";
+  if (playKind === "serve") return "serve";
+  if (["serveReception", "attackReception"].includes(playKind)) return "reception";
+  if (playKind === "set") return "set";
+  if (["attack", "backAttack", "twoAttack", "feint"].includes(playKind)) return "attack";
+  if (playKind === "block") return "block";
+  return "other";
+}
+
 function renderQuickRallyEntry() {
   const container = byId("quick-rally-entry");
   if (!container) return;
@@ -4523,7 +4534,7 @@ function renderQuickRallyEntry() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `mini-select-button${player.id === quickRallyPlayerId ? " selected" : ""}`;
-    button.textContent = `#${player.number}`;
+    button.innerHTML = `<span class="quick-player-number">#${player.number}</span><span class="quick-player-name">${player.name}</span>`;
     button.title = player.name;
     button.setAttribute("aria-label", `#${player.number} ${player.name}`);
     button.setAttribute("aria-pressed", String(player.id === quickRallyPlayerId));
@@ -4589,7 +4600,8 @@ function renderQuickRallyEntry() {
   ].forEach(([playKind, outcome, label]) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "button button-secondary quick-rally-action";
+    const category = getQuickActionCategory(playKind, outcome);
+    button.className = `button button-secondary quick-rally-action quick-action-${category}`;
     button.textContent = label;
     button.disabled = !matchHasStarted() || !canScore(currentMatch) || !quickRallyPlayerId;
     button.addEventListener("click", () =>
