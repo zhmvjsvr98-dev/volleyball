@@ -238,11 +238,17 @@ export function getEventDescription(match, event) {
       attackReception: "アタックレシーブ", set: "トス",
       attack: "アタック", backAttack: "バックアタック", twoAttack: "ツーアタック", block: "ブロック", feint: "フェイント",
       error: "ミス", other: "その他",
+      antenna: "アンテナ", delayInService: "ディレイインサービス", screen: "スクリーン",
+      catch: "キャッチ", doubleContact: "ダブルコンタクト", fourHits: "フォアヒット",
+      netTouch: "タッチネット", overNet: "オーバーネット", attackFault: "アタックヒットの反則",
+      penetrationFault: "ペネトレーションフォルト", delay: "ディレイ",
     };
     const outcomes = {
       success: "成功・継続", point: "得点", error: "失点・ミス",
       touch: "タッチ・継続", effective: "効果あり", excellent: "レシーブ優",
       good: "レシーブ良", other: "その他",
+      net: "ネット", out: "アウト", yellowCard: "イエローカード", redCard: "レッドカード",
+      expulsion: "退場", disqualification: "失格",
     };
     const zone = event.attackZone
       ? ` / アタックゾーン${event.attackZone}`

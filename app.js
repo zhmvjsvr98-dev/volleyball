@@ -70,8 +70,8 @@ const officialRoles = [
   ["lineJudge3", "ラインジャッジ3"],
   ["lineJudge4", "ラインジャッジ4"],
 ];
-const rallyKinds = ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "twoAttack", "block", "feint", "error", "other"];
-const rallyOutcomes = ["success", "point", "error", "touch", "effective", "excellent", "good", "other"];
+const rallyKinds = ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "twoAttack", "block", "feint", "error", "other", "antenna", "delayInService", "screen", "catch", "doubleContact", "fourHits", "netTouch", "overNet", "attackFault", "penetrationFault", "delay"];
+const rallyOutcomes = ["success", "point", "error", "touch", "effective", "excellent", "good", "other", "net", "out", "yellowCard", "redCard", "expulsion", "disqualification"];
 const builtInRuleProfiles = {
   standard: { id: "standard", name: "標準（6人制・一般）", settings: { matchProfile: "six", category: "一般", division: "男子", bestOf: 5, regularTarget: 25, finalTarget: 15 } },
   "high-school-boys": { id: "high-school-boys", name: "高校男子", settings: { matchProfile: "six", category: "高校", division: "男子", bestOf: 3, regularTarget: 25, finalTarget: 15, rosterLimit: 18 } },
@@ -2403,34 +2403,6 @@ function renderHistoricalLineupRecommendation(team, matches) {
   return section;
 }
 
-function renderMedicalEntryOptions() {
-  const teamSelect = byId("medical-team");
-  const playerSelect = byId("medical-player");
-  if (!teamSelect || !playerSelect) return;
-  const previousTeam = teamSelect.value;
-  teamSelect.replaceChildren();
-  currentMatch.teams.forEach((team) => {
-    const option = document.createElement("option");
-    option.value = team.id;
-    option.textContent = team.name;
-    teamSelect.append(option);
-  });
-  teamSelect.value = currentMatch.teams.some((team) => team.id === previousTeam)
-    ? previousTeam : currentMatch.teams[0].id;
-  const team = currentMatch.teams.find((item) => item.id === teamSelect.value);
-  const previousPlayer = playerSelect.value;
-  playerSelect.replaceChildren();
-  (team?.players || []).forEach((player) => {
-    const option = document.createElement("option");
-    option.value = player.id;
-    option.textContent = `#${player.number} ${player.name}`;
-    playerSelect.append(option);
-  });
-  playerSelect.value = team?.players.some((player) => player.id === previousPlayer)
-    ? previousPlayer : team?.players[0]?.id || "";
-  byId("record-medical-event").disabled = !matchHasStarted() || !canScore(currentMatch) || !playerSelect.value;
-}
-
 function renderTrainingMatchOptions() {
   const select = byId("training-match");
   if (!select) return;
@@ -2664,7 +2636,7 @@ function renderTeams() {
     renderTeamCard(elements.teamCards[index], team, index, currentMatch.rules.rosterLimit, rosterLocked);
     elements.teamCards[index].classList.add(index === 0 ? "team-a" : "team-b");
   });
-  for (const id of ["sub-team", "libero-team", "sanction-team", "rally-team", "challenge-team", "correction-team"]) {
+  for (const id of ["correction-team"]) {
     const select = byId(id);
     const previous = select.value;
     select.replaceChildren();
@@ -2676,7 +2648,6 @@ function renderTeams() {
     });
     if (currentMatch.teams.some((team) => team.id === previous)) select.value = previous;
   }
-  renderRallyEntryForm();
   renderTeamProfiles();
   renderRosterPhotoControls(rosterLocked);
 }
@@ -3935,9 +3906,6 @@ function renderSubstitutionMonitors() {
   byId("substitution-monitor").classList.toggle("is-warning", currentMatch.teams.some((team) =>
     currentMatch.rules.substitutionLimit - getSetSubstitutionCount(currentSet(), team.id, "substitution") <= 1));
   byId("libero-monitor").textContent = liberoLines.join("\n");
-  byId("record-substitution").disabled = !canScore(currentMatch)
-    || currentMatch.teams.every((team) => getSetSubstitutionCount(currentSet(), team.id, "substitution") >= currentMatch.rules.substitutionLimit);
-  byId("record-libero-substitution").disabled = !canScore(currentMatch);
   byId("record-score-correction").disabled = !matchHasStarted();
 }
 
@@ -3965,7 +3933,6 @@ function renderChallenges() {
     return `${team.name}: 失敗 ${failures}/2`;
   });
   status.textContent = `${summary.join(" / ")}（成功は回数を消費しません）`;
-  byId("record-challenge").disabled = !canScore(currentMatch);
 }
 
 function renderMatchTimer() {
@@ -4291,145 +4258,219 @@ function fillPlayerSelect(select, players, selectedValue = "") {
   select.value = selectedValue;
 }
 
-function renderRallyEntryForm() {
-  const teamSelect = byId("rally-team");
-  if (!teamSelect) return;
-  const selectedTeamId = currentMatch.teams.some((team) => team.id === teamSelect.value)
-    ? teamSelect.value : currentMatch.teams[0].id;
-  teamSelect.value = selectedTeamId;
-  const teamGroup = byId("rally-team-group");
-  teamGroup?.replaceChildren();
-  currentMatch.teams.forEach((item, index) => {
+// ---- イベントクイック入力 ----
+function makeQuickButton(label, onClick, disabled = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "button button-secondary quick-rally-action";
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function makeQuickTeamRow(selectedId, onSelect) {
+  const row = document.createElement("div");
+  row.className = "quick-rally-team-buttons";
+  currentMatch.teams.forEach((team, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `mini-select-button${item.id === selectedTeamId ? " selected" : ""}`;
-    button.dataset.rallyTeam = item.id;
-    button.textContent = item.name || `チーム ${index === 0 ? "A" : "B"}`;
-    button.addEventListener("click", () => {
-      teamSelect.value = item.id;
-      renderRallyEntryForm();
-    });
-    teamGroup?.append(button);
+    button.className = `mini-select-button${team.id === selectedId ? " selected" : ""}`;
+    button.textContent = team.name || `チーム ${index === 0 ? "A" : "B"}`;
+    button.addEventListener("click", () => onSelect(team.id));
+    row.append(button);
   });
+  return row;
+}
 
-  const team = getTeam(selectedTeamId);
-  const activePlayers = getCourtPlayers(selectedTeamId);
-  const playerSelect = byId("rally-player");
-  const previousPlayerId = playerSelect?.value;
-  const playerGroup = byId("rally-player-group");
-  if (playerGroup) {
-    playerGroup.replaceChildren();
-    if (activePlayers.length === 0) {
-      const empty = document.createElement("p");
-      empty.className = "empty-message";
-      empty.textContent = "コートに入る選手をローテーションまたはサーブ順で設定してください。";
-      playerGroup.append(empty);
-    } else {
-      activePlayers.forEach((player) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `mini-select-button${(previousPlayerId === player.id || (!activePlayers.some((item) => item.id === previousPlayerId) && activePlayers[0]?.id === player.id)) ? " selected" : ""}`;
-        button.textContent = `#${player.number} ${player.name}`;
-        button.dataset.playerId = player.id;
-        button.dataset.teamId = team.id;
-        button.dataset.playerRole = player.isLibero ? "libero" : "player";
-        button.style.setProperty("--player-accent", player.isLibero ? getLiberoDisplayColor(team) : getTeamDisplayColor(team));
-        button.addEventListener("click", () => {
-          playerGroup.querySelectorAll(".mini-select-button[data-team-id]").forEach((node) => node.classList.toggle("selected", node === button));
-          const playerSelect = byId("rally-player");
-          if (playerSelect) playerSelect.value = player.id;
-        });
-        playerGroup.append(button);
-      });
-    }
-  }
-  if (playerSelect) {
-    playerSelect.replaceChildren();
-    activePlayers.forEach((player) => {
-      const option = document.createElement("option");
-      option.value = player.id;
-      option.textContent = `#${player.number} ${player.name}`;
-      playerSelect.append(option);
-    });
-    playerSelect.value = activePlayers.some((player) => player.id === previousPlayerId)
-      ? previousPlayerId : activePlayers[0]?.id || "";
-  }
-
-  const kindSelect = byId("rally-kind");
-  const kindGroup = byId("rally-kind-group");
-  kindGroup?.querySelectorAll("button").forEach((button) => {
-    const selected = (kindSelect ? kindSelect.value : button.dataset.value) === button.dataset.value;
-    button.classList.toggle("selected", selected);
+function makeQuickPlayerRow(teamId, selectedId, onSelect, filter = null) {
+  const row = document.createElement("div");
+  row.className = "quick-rally-player-buttons";
+  const team = getTeam(teamId);
+  const players = (team?.players || []).filter((player) => !filter || filter(player));
+  players.forEach((player) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `mini-select-button${player.id === selectedId ? " selected" : ""}`;
+    button.textContent = `#${player.number}`;
+    button.title = player.name;
+    button.addEventListener("click", () => onSelect(player.id));
+    row.append(button);
   });
+  return row;
+}
 
-  const outcomeSelect = byId("rally-outcome");
-  const outcomeGroup = byId("rally-outcome-group");
-  outcomeGroup?.querySelectorAll("button").forEach((button) => {
-    const selected = (outcomeSelect ? outcomeSelect.value : button.dataset.value) === button.dataset.value;
-    button.classList.toggle("selected", selected);
+let quickEventTeamId = "";
+let quickEventPlayerId = "";
+let quickSubOutId = "";
+let quickSubInId = "";
+let quickLiberoOutId = "";
+let quickLiberoInId = "";
+
+function renderQuickEventEntry() {
+  renderQuickChallenge();
+  renderQuickSubstitution();
+  renderQuickLibero();
+  renderQuickSanction();
+  renderQuickMedical();
+}
+
+function renderQuickChallenge() {
+  const container = byId("challenge-quick");
+  if (!container) return;
+  container.replaceChildren();
+  if (!currentMatch.teams.some((team) => team.id === quickEventTeamId)) {
+    quickEventTeamId = currentMatch.teams[0]?.id || "";
+  }
+  container.append(makeQuickTeamRow(quickEventTeamId, (id) => { quickEventTeamId = id; renderQuickEventEntry(); }));
+  const types = [
+    ["net-touch", "ネットタッチ"], ["block-touch", "ブロックタッチ"], ["antenna", "アンテナ接触"],
+    ["ball-in-out", "イン/アウト"], ["foot-fault", "フットフォルト"], ["other", "その他"],
+  ];
+  const typeRow = document.createElement("div");
+  typeRow.className = "quick-rally-action-buttons";
+  types.forEach(([value, label]) => {
+    typeRow.append(makeQuickButton(label, () => {
+      if (!canScore(currentMatch)) return;
+      addEvent({ type: "challenge", teamId: quickEventTeamId, challengeType: value, result: "success", note: "" });
+    }, !canScore(currentMatch)));
   });
-  const attackZoneField = byId("rally-attack-zone-field");
-  const attackZoneSelect = byId("rally-attack-zone");
-  const attackZoneVisible = ["attack", "backAttack", "twoAttack"].includes(kindSelect?.value);
-  if (attackZoneField) attackZoneField.hidden = !attackZoneVisible;
-  if (attackZoneSelect && !attackZoneVisible) attackZoneSelect.value = "";
-  const courseZoneField = byId("rally-course-zone-field");
-  const courseZoneSelect = byId("rally-course-zone");
-  const courseZoneLabel = byId("rally-course-zone-label");
-  const courseClearButton = byId("rally-course-clear");
-  const serveCourse = kindSelect?.value === "serve";
-  const receptionCourse = ["reception", "serveReception", "attackReception"].includes(kindSelect?.value);
-  if (courseZoneField) courseZoneField.hidden = !serveCourse && !receptionCourse;
-  if (courseZoneLabel) courseZoneLabel.textContent = `5 ${serveCourse ? "サーブコース（狙った先）" : "レシーブコース（受けた位置）"}`;
-  if (courseZoneSelect && !serveCourse && !receptionCourse) courseZoneSelect.value = "";
-  if (courseClearButton) {
-    const courseNotRecorded = !courseZoneSelect?.value;
-    courseClearButton.classList.toggle("selected", courseNotRecorded);
-    courseClearButton.setAttribute("aria-pressed", String(courseNotRecorded));
-  }
-  const courseCourt = byId("rally-course-court");
-  if (courseCourt) {
-    courseCourt.replaceChildren();
-    const oppositeHalf = document.createElement("div");
-    oppositeHalf.className = `rally-course-half${serveCourse ? " active" : ""}`;
-    oppositeHalf.setAttribute("aria-label", serveCourse ? "サーブの狙い先コート" : "相手コート");
-    const nearHalf = document.createElement("div");
-    nearHalf.className = `rally-course-half${receptionCourse ? " active" : ""}`;
-    nearHalf.setAttribute("aria-label", receptionCourse ? "レシーブ位置" : "自チームコート");
-    const appendZones = (half, zones, enabled) => {
-      zones.forEach((zone) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = `rally-course-zone-button${courseZoneSelect?.value === String(zone) ? " selected" : ""}`;
-        button.textContent = String(zone);
-        button.setAttribute("aria-label", `ゾーン${zone}${enabled ? "を選択" : ""}`);
-        button.setAttribute("aria-pressed", String(courseZoneSelect?.value === String(zone)));
-        button.disabled = !enabled;
-        if (enabled) {
-          button.addEventListener("click", () => {
-            courseZoneSelect.value = String(zone);
-            courseCourt.querySelectorAll(".rally-course-zone-button").forEach((zoneButton) => {
-              const selected = zoneButton === button;
-              zoneButton.classList.toggle("selected", selected);
-              zoneButton.setAttribute("aria-pressed", String(selected));
-            });
-            courseClearButton?.classList.remove("selected");
-            courseClearButton?.setAttribute("aria-pressed", "false");
-          });
-        }
-        half.append(button);
-      });
-    };
-    appendZones(oppositeHalf, [5, 6, 1, 4, 3, 2], serveCourse);
-    const net = document.createElement("div");
-    net.className = "rally-course-net";
-    net.textContent = "ネット";
-    appendZones(nearHalf, [1, 6, 5, 2, 3, 4], receptionCourse);
-    courseCourt.append(oppositeHalf, net, nearHalf);
-  }
+  container.append(typeRow);
+  const resultRow = document.createElement("div");
+  resultRow.className = "quick-rally-action-buttons";
+  resultRow.append(
+    makeQuickButton("成功", () => {
+      if (!canScore(currentMatch)) return;
+      addEvent({ type: "challenge", teamId: quickEventTeamId, challengeType: "other", result: "success", note: "" });
+    }, !canScore(currentMatch)),
+    makeQuickButton("失敗", () => {
+      if (!canScore(currentMatch)) return;
+      const failures = currentSet().events.filter((event) =>
+        event.type === "challenge" && event.teamId === quickEventTeamId && event.result === "failed").length;
+      if (failures >= 2) { showError("このチームはこのセットでチャレンジ失敗の上限（2回）に達しています。"); return; }
+      addEvent({ type: "challenge", teamId: quickEventTeamId, challengeType: "other", result: "failed", note: "" });
+    }, !canScore(currentMatch)),
+  );
+  container.append(resultRow);
+}
 
-  const recordButton = byId("record-rally-play");
-  if (recordButton) recordButton.disabled = !matchHasStarted() || !canScore(currentMatch) || activePlayers.length === 0;
+function renderQuickSubstitution() {
+  const container = byId("substitution-quick");
+  if (!container) return;
+  container.replaceChildren();
+  if (!currentMatch.teams.some((team) => team.id === quickEventTeamId)) {
+    quickEventTeamId = currentMatch.teams[0]?.id || "";
+  }
+  container.append(makeQuickTeamRow(quickEventTeamId, (id) => { quickEventTeamId = id; quickSubOutId = ""; quickSubInId = ""; renderQuickEventEntry(); }));
+  const team = getTeam(quickEventTeamId);
+  const lineup = getCurrentLineup(currentMatch, currentSet(), quickEventTeamId);
+  const courtPlayers = (team?.players || []).filter((player) => lineup.includes(player.id) && !player.isLibero);
+  const benchPlayers = (team?.players || []).filter((player) => !lineup.includes(player.id) && !player.isLibero);
+  const outLabel = document.createElement("p");
+  outLabel.className = "quick-rally-label";
+  outLabel.textContent = "退く選手";
+  container.append(outLabel, makeQuickPlayerRow(quickEventTeamId, quickSubOutId, (id) => { quickSubOutId = id; renderQuickSubstitution(); }, (p) => courtPlayers.includes(p)));
+  const inLabel = document.createElement("p");
+  inLabel.className = "quick-rally-label";
+  inLabel.textContent = "入る選手";
+  container.append(inLabel, makeQuickPlayerRow(quickEventTeamId, quickSubInId, (id) => { quickSubInId = id; renderQuickSubstitution(); }, (p) => benchPlayers.includes(p)));
+  const recordRow = document.createElement("div");
+  recordRow.className = "quick-rally-action-buttons";
+  recordRow.append(makeQuickButton("交代を記録", () => {
+    if (!canScore(currentMatch)) return;
+    const out = team?.players.find((p) => p.id === quickSubOutId);
+    const inp = team?.players.find((p) => p.id === quickSubInId);
+    if (!out || !inp) { showError("退く選手と入る選手を選んでください。"); return; }
+    const substitutions = currentSet().events.filter((event) => event.type === "substitution" && event.teamId === quickEventTeamId).length;
+    if (substitutions >= currentMatch.rules.substitutionLimit) { showError(`このセットの交代上限（${currentMatch.rules.substitutionLimit}回）に達しています。`); return; }
+    addEvent({ type: "substitution", teamId: quickEventTeamId, playerOut: out.number, playerIn: inp.number });
+    quickSubOutId = ""; quickSubInId = "";
+    renderQuickSubstitution();
+  }, !canScore(currentMatch) || !quickSubOutId || !quickSubInId));
+  container.append(recordRow);
+}
+
+function renderQuickLibero() {
+  const container = byId("libero-quick");
+  if (!container) return;
+  container.replaceChildren();
+  if (!currentMatch.teams.some((team) => team.id === quickEventTeamId)) {
+    quickEventTeamId = currentMatch.teams[0]?.id || "";
+  }
+  container.append(makeQuickTeamRow(quickEventTeamId, (id) => { quickEventTeamId = id; quickLiberoOutId = ""; quickLiberoInId = ""; renderQuickEventEntry(); }));
+  const team = getTeam(quickEventTeamId);
+  const lineup = getCurrentLineup(currentMatch, currentSet(), quickEventTeamId);
+  const liberos = (team?.players || []).filter((player) => player.isLibero);
+  const outLabel = document.createElement("p");
+  outLabel.className = "quick-rally-label";
+  outLabel.textContent = "退くリベロ・選手";
+  container.append(outLabel, makeQuickPlayerRow(quickEventTeamId, quickLiberoOutId, (id) => { quickLiberoOutId = id; renderQuickLibero(); }, (p) => lineup.includes(p.id)));
+  const inLabel = document.createElement("p");
+  inLabel.className = "quick-rally-label";
+  inLabel.textContent = "入るリベロ・選手";
+  container.append(inLabel, makeQuickPlayerRow(quickEventTeamId, quickLiberoInId, (id) => { quickLiberoInId = id; renderQuickLibero(); }, (p) => !lineup.includes(p.id)));
+  const recordRow = document.createElement("div");
+  recordRow.className = "quick-rally-action-buttons";
+  recordRow.append(makeQuickButton("リベロ交代を記録", () => {
+    if (!canScore(currentMatch)) return;
+    const out = team?.players.find((p) => p.id === quickLiberoOutId);
+    const inp = team?.players.find((p) => p.id === quickLiberoInId);
+    if (!out || !inp) { showError("退く選手と入る選手を選んでください。"); return; }
+    if (out.isLibero === inp.isLibero) { showError("リベロ交代では、リベロ選手と交代対象選手を1名ずつ指定してください。"); return; }
+    if (inp.isLibero && team.players.some((p) => p.isLibero && p.id !== out.id && lineup.includes(p.id))) { showError("コート内にリベロは1名までです。"); return; }
+    addEvent({ type: "libero-substitution", teamId: quickEventTeamId, playerOut: out.number, playerIn: inp.number });
+    quickLiberoOutId = ""; quickLiberoInId = "";
+    renderQuickLibero();
+  }, !canScore(currentMatch) || !quickLiberoOutId || !quickLiberoInId));
+  container.append(recordRow);
+}
+
+function renderQuickSanction() {
+  const container = byId("sanction-quick");
+  if (!container) return;
+  container.replaceChildren();
+  if (!currentMatch.teams.some((team) => team.id === quickEventTeamId)) {
+    quickEventTeamId = currentMatch.teams[0]?.id || "";
+  }
+  container.append(makeQuickTeamRow(quickEventTeamId, (id) => { quickEventTeamId = id; renderQuickEventEntry(); }));
+  const team = getTeam(quickEventTeamId);
+  const sanctions = [
+    ["warning", "警告"], ["penalty", "ペナルティ"], ["expulsion", "退場"], ["disqualification", "失格"],
+    ["delay-warning", "遅延警告"], ["delay-penalty", "遅延ペナルティ"],
+  ];
+  const row = document.createElement("div");
+  row.className = "quick-rally-action-buttons";
+  sanctions.forEach(([value, label]) => {
+    row.append(makeQuickButton(label, () => {
+      if (!canScore(currentMatch)) return;
+      addEvent({ type: "sanction", teamId: quickEventTeamId, player: team?.name || "", subjectType: "team", sanctionType: value });
+    }, !canScore(currentMatch)));
+  });
+  container.append(row);
+}
+
+function renderQuickMedical() {
+  const container = byId("medical-quick");
+  if (!container) return;
+  container.replaceChildren();
+  if (!currentMatch.teams.some((team) => team.id === quickEventTeamId)) {
+    quickEventTeamId = currentMatch.teams[0]?.id || "";
+  }
+  container.append(makeQuickTeamRow(quickEventTeamId, (id) => { quickEventTeamId = id; quickEventPlayerId = ""; renderQuickEventEntry(); }));
+  const team = getTeam(quickEventTeamId);
+  container.append(makeQuickPlayerRow(quickEventTeamId, quickEventPlayerId, (id) => { quickEventPlayerId = id; renderQuickMedical(); }));
+  const areas = ["足首", "膝", "太もも", "ふくらはぎ", "肩", "指・手", "腰", "その他"];
+  const areaRow = document.createElement("div");
+  areaRow.className = "quick-rally-action-buttons";
+  areas.forEach((area) => {
+    areaRow.append(makeQuickButton(area, () => {
+      if (!matchHasStarted() || !canScore(currentMatch)) return;
+      const player = team?.players.find((p) => p.id === quickEventPlayerId);
+      if (!player) { showError("メディカル記録の対象選手を選択してください。"); return; }
+      addEvent({ type: "medical", teamId: quickEventTeamId, playerId: player.id, bodyArea: area, status: "play", note: "" });
+    }, !matchHasStarted() || !canScore(currentMatch) || !quickEventPlayerId));
+  });
+  container.append(areaRow);
 }
 
 function renderQuickRallyEntry() {
@@ -4503,8 +4544,26 @@ function renderQuickRallyEntry() {
   const actions = document.createElement("div");
   actions.className = "quick-rally-action-buttons";
   [
+    ["serve", "success", "サーブ成功"],
     ["serve", "point", "サービスエース"],
+    ["serve", "net", "サーブ失敗（ネット）"],
+    ["serve", "out", "サーブ失敗（アウト）"],
     ["serve", "error", "サーブミス"],
+    ["delayInService", "error", "ディレイインサービス"],
+    ["antenna", "error", "アンテナ"],
+    ["screen", "error", "スクリーン"],
+    ["catch", "error", "キャッチ"],
+    ["doubleContact", "error", "ダブルコンタクト"],
+    ["fourHits", "error", "フォアヒット"],
+    ["netTouch", "error", "タッチネット"],
+    ["overNet", "error", "オーバーネット"],
+    ["attackFault", "error", "アタックヒットの反則"],
+    ["penetrationFault", "error", "ペネトレーションフォルト"],
+    ["delay", "error", "ディレイ"],
+    ["other", "yellowCard", "イエローカード"],
+    ["other", "redCard", "レッドカード"],
+    ["other", "expulsion", "退場"],
+    ["other", "disqualification", "失格"],
     ["serveReception", "good", "サーブレシーブ成功（良）"],
     ["serveReception", "excellent", "サーブレシーブ成功（優）"],
     ["serveReception", "error", "サーブレシーブミス"],
@@ -4540,7 +4599,7 @@ function renderQuickRallyEntry() {
   actionsField.append(actions);
   const note = document.createElement("p");
   note.className = "event-help quick-rally-note";
-  note.textContent = "コース・備考なども残す場合は、下の「ラリー・イベント入力」で詳細記録できます。";
+  note.textContent = "反則・カード類は相手チームに1点が入ります（カードのみの記録はイベント記録画面の罰則欄も使えます）。";
   container.append(teamField, playerField, actionsField, note);
 }
 
@@ -4599,110 +4658,41 @@ function addDetailedScore() {
   clearError();
 }
 
-function recordRallyPlay(playKindOverride, outcomeOverride, teamIdOverride, playerIdOverride) {
+function recordRallyPlay(playKind, outcome, teamId, playerId) {
   if (!matchHasStarted() || !canScore(currentMatch)) return;
-  const isQuickEntry = Boolean(playKindOverride);
-
-  const practicalKind =
-    playKindOverride ||
-    byId("rally-kind")?.value ||
-    byId("rally-kind-group")
-      ?.querySelector(".mini-select-button.selected")
-      ?.dataset.value ||
-    "serve";
-
-  const practicalOutcome =
-    outcomeOverride ||
-    byId("rally-outcome")?.value ||
-    byId("rally-outcome-group")
-      ?.querySelector(".mini-select-button.selected")
-      ?.dataset.value ||
-    "success";
-
-  const team = getTeam(teamIdOverride || byId("rally-team").value);
-
-  const playerId =
-    playerIdOverride || byId("rally-player").value || null;
-
-  const playKind = practicalKind;
-  const outcome = practicalOutcome;
-
-  if (
-    !team ||
-    (
-      playerId &&
-      !getCourtPlayers(team.id).some(
-        (player) => player.id === playerId
-      )
-    )
-  ) {
-    showError(
-      "プレーをしたコート内の選手を選択してください。"
-    );
+  const team = getTeam(teamId);
+  if (!team || (playerId && !getCourtPlayers(team.id).some((player) => player.id === playerId))) {
+    showError("プレーをしたコート内の選手を選択してください。");
     return;
   }
-
-  if (
-    !rallyKinds.includes(playKind) ||
-    !rallyOutcomes.includes(outcome)
-  ) {
-    showError(
-      "ラリーの動作と結果を選択してください。"
-    );
+  if (!rallyKinds.includes(playKind) || !rallyOutcomes.includes(outcome)) {
+    showError("ラリーの動作と結果を選択してください。");
     return;
   }
-
-  const note = (isQuickEntry ? "" : byId("rally-note").value)
-      .trim()
-      .slice(0, 120);
-  const attackZone = !isQuickEntry && ["attack", "backAttack", "twoAttack"].includes(playKind)
-    ? Number(byId("rally-attack-zone").value) || null
-    : null;
-  const courseZone = !isQuickEntry && ["serve", "reception", "serveReception", "attackReception"].includes(playKind)
-    ? Number(byId("rally-course-zone").value) || null
-    : null;
-
   const rallyEvent = addEvent({
     type: "rally-play",
     teamId: team.id,
     playerId,
     playKind,
     outcome,
-    note,
-    ...(attackZone ? { attackZone } : {}),
-    ...(courseZone ? { courseZone } : {}),
+    note: "",
   });
-
-  // 得点 → 自チームへ加点
   if (outcome === "point") {
     const statPlayKind = getPerformanceKind(rallyEvent);
-
     addEvent({
       type: "score",
       teamId: team.id,
       delta: 1,
       playType: "other",
-      ...(["serve", "attack", "backAttack", "block"].includes(statPlayKind)
-        ? { statPlayKind }
-        : {}),
+      ...(["serve", "attack", "backAttack", "block"].includes(statPlayKind) ? { statPlayKind } : {}),
       playerId,
       faultPlayerId: null,
       note: `ラリー記録: ${playKind}`,
       rallyEventId: rallyEvent.id,
     });
-
-  }
-
-  // 失点 → 相手チームへ加点
-  else if (outcome === "error") {
-
-    const opponent =
-      currentMatch.teams.find(
-        (item) => item.id !== team.id
-      );
-
+  } else if (["error", "net", "out"].includes(outcome)) {
+    const opponent = currentMatch.teams.find((item) => item.id !== team.id);
     if (opponent) {
-
       addEvent({
         type: "score",
         teamId: opponent.id,
@@ -4713,16 +4703,8 @@ function recordRallyPlay(playKindOverride, outcomeOverride, teamIdOverride, play
         note: `相手得点（${team.name}の失点）`,
         rallyEventId: rallyEvent.id,
       });
-
     }
   }
-
-  if (!isQuickEntry) {
-    byId("rally-note").value = "";
-    byId("rally-attack-zone").value = "";
-    byId("rally-course-zone").value = "";
-  }
-
   clearError();
 }
 
@@ -4746,6 +4728,7 @@ function render() {
     renderLivePerformanceMetrics();
     renderIntegrityAlerts();
     renderCurrentSetReport();
+    renderQuickEventEntry();
   }
   renderMatchTimer();
   renderRotation();
@@ -7851,17 +7834,6 @@ function bindEvents() {
   document.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
-    const quickChoice = target.closest("#rally-kind-group [data-value], #rally-outcome-group [data-value]");
-    if (quickChoice instanceof HTMLButtonElement) {
-      const group = quickChoice.closest("#rally-kind-group, #rally-outcome-group");
-      const select = byId(group?.id === "rally-kind-group" ? "rally-kind" : "rally-outcome");
-      if (select) select.value = quickChoice.dataset.value;
-      group?.querySelectorAll("button[data-value]").forEach((button) => {
-        button.classList.toggle("selected", button === quickChoice);
-      });
-      if (group?.id === "rally-kind-group") renderRallyEntryForm();
-      return;
-    }
     const scoreButton = target.closest("[data-score-team]");
     if (scoreButton) {
       const delta = Number(scoreButton.dataset.delta);
@@ -8090,131 +8062,6 @@ function bindEvents() {
     const file = event.target.files?.[0];
     if (!file) return;
     importMatchFile(file).catch((error) => showError(error.message)).finally(() => { event.target.value = ""; });
-  });
-  byId("record-substitution").addEventListener("click", () => {
-    if (!canScore(currentMatch)) return;
-    const teamId = byId("sub-team").value;
-    const team = getTeam(teamId);
-    const playerOut = byId("sub-out").value.trim();
-    const playerIn = byId("sub-in").value.trim();
-    const outgoing = team.players.find((player) => player.number === playerOut);
-    const incoming = team.players.find((player) => player.number === playerIn);
-    const lineup = getCurrentLineup(currentMatch, currentSet(), teamId);
-    if (!/^\d{1,3}$/.test(playerOut) || !/^\d{1,3}$/.test(playerIn)
-      || !outgoing || !incoming || outgoing.id === incoming.id
-      || outgoing.isLibero || incoming.isLibero
-      || !lineup.includes(outgoing.id) || lineup.includes(incoming.id)) {
-      showError("交代は、コート内の選手から登録済みの控え選手へ指定してください。リベロ交代は専用欄を使用してください。");
-      return;
-    }
-    const substitutions = currentSet().events.filter((event) => event.type === "substitution" && event.teamId === teamId).length;
-    if (substitutions >= currentMatch.rules.substitutionLimit) {
-      showError(`このセットの交代上限（${currentMatch.rules.substitutionLimit}回）に達しています。`);
-      return;
-    }
-    addEvent({ type: "substitution", teamId, playerOut, playerIn });
-    byId("sub-out").value = "";
-    byId("sub-in").value = "";
-  });
-  byId("record-libero-substitution").addEventListener("click", () => {
-    if (!canScore(currentMatch)) return;
-    const teamId = byId("libero-team").value;
-    const team = getTeam(teamId);
-    const playerOut = byId("libero-out").value.trim();
-    const playerIn = byId("libero-in").value.trim();
-    const outgoing = team.players.find((player) => player.number === playerOut || player.name === playerOut);
-    const incoming = team.players.find((player) => player.number === playerIn || player.name === playerIn);
-    const lineup = getCurrentLineup(currentMatch, currentSet(), teamId);
-    if (!outgoing || !incoming) {
-      showError("入力された背番号または氏名がチーム登録にありません。");
-      return;
-    }
-    if (outgoing.id === incoming.id) {
-      showError("退く選手と入る選手は別の選手を指定してください。");
-      return;
-    }
-    if (outgoing.isLibero === incoming.isLibero) {
-      showError("リベロ交代では、リベロ選手と交代対象選手を1名ずつ指定してください。");
-      return;
-    }
-    if (!lineup.includes(outgoing.id)) {
-      showError("退く選手は現在コート内にいる選手を指定してください。");
-      return;
-    }
-    if (lineup.includes(incoming.id)) {
-      showError("入る選手は現在コート外にいる選手を指定してください。");
-      return;
-    }
-    if (incoming.isLibero && team.players.some((player) => player.isLibero && player.id !== outgoing.id && lineup.includes(player.id))) {
-      showError("コート内にリベロは1名までです。");
-      return;
-    }
-    addEvent({
-      type: "libero-substitution",
-      teamId,
-      playerOut: outgoing.number,
-      playerIn: incoming.number,
-    });
-    byId("libero-out").value = "";
-    byId("libero-in").value = "";
-  });
-  byId("record-sanction").addEventListener("click", () => {
-    if (!canScore(currentMatch)) return;
-    const team = getTeam(byId("sanction-team").value);
-    const subjectType = byId("sanction-subject-type").value;
-    const player = byId("sanction-player").value.trim() || (subjectType === "team" ? team.name : "");
-    if (!player) return showError("処置対象者を入力してください。");
-    addEvent({
-      type: "sanction",
-      teamId: team.id,
-      player: player.slice(0, 40),
-      subjectType,
-      sanctionType: byId("sanction-type").value,
-    });
-    byId("sanction-player").value = "";
-  });
-  byId("medical-team").addEventListener("change", renderMedicalEntryOptions);
-  byId("record-medical-event").addEventListener("click", () => {
-    if (!matchHasStarted() || !canScore(currentMatch)) return;
-    const team = getTeam(byId("medical-team").value);
-    const player = team?.players.find((item) => item.id === byId("medical-player").value);
-    if (!team || !player) return showError("メディカル記録の対象選手を選択してください。");
-    addEvent({
-      type: "medical",
-      teamId: team.id,
-      playerId: player.id,
-      bodyArea: byId("medical-area").value,
-      status: byId("medical-status").value,
-      note: byId("medical-note").value.trim().slice(0, 120),
-    });
-    byId("medical-note").value = "";
-    clearError();
-  });
-  byId("rally-team").addEventListener("change", renderRallyEntryForm);
-  byId("rally-course-clear").addEventListener("click", () => {
-    byId("rally-course-zone").value = "";
-    renderRallyEntryForm();
-  });
-  byId("record-rally-play").addEventListener("click", recordRallyPlay);
-  byId("record-challenge").addEventListener("click", () => {
-    if (!canScore(currentMatch)) return;
-    const teamId = byId("challenge-team").value;
-    const result = byId("challenge-result").value;
-    const failures = currentSet().events.filter((event) =>
-      event.type === "challenge" && event.teamId === teamId && event.result === "failed").length;
-    if (result === "failed" && failures >= 2) {
-      showError("このチームはこのセットでチャレンジ失敗の上限（2回）に達しています。");
-      return;
-    }
-    addEvent({
-      type: "challenge",
-      teamId,
-      challengeType: byId("challenge-type").value,
-      result,
-      note: byId("challenge-note").value.trim().slice(0, 120),
-    });
-    byId("challenge-note").value = "";
-    clearError();
   });
   byId("record-technical-timeout").addEventListener("click", () => {
     if (!matchHasStarted() || !canScore(currentMatch)) return showError("試合中にTTOを記録してください。");
@@ -8533,7 +8380,6 @@ function navigateTo(page, updateAddress = true) {
   if (activeNavigation) document.title = `${activeNavigation.textContent.trim()} | JVA Volleyball Official Electronic Score Sheet`;
   if (selected === "match") {
     render();
-    renderMedicalEntryOptions();
   }
   else if (selected === "rotation") renderRotation();
   else renderVisibleSupplementalViews();
