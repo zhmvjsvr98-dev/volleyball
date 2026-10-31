@@ -3,7 +3,7 @@ const CACHE_NAME = `jva-score-static-${self.APP_VERSION}`;
 const APP_FILES = [
   "./",
   "./index.html",
-  "./style.css?v=69",
+  "./style.css?v=70",
   "./app.js",
   "./score.js",
   "./version.js",
@@ -12,6 +12,7 @@ const APP_FILES = [
   "./quality-assurance.js",
   "./components.js",
   "./manifest.webmanifest",
+  "./rulebook.pdf",
 ];
 
 self.addEventListener("install", (event) => {

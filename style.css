@@ -83,6 +83,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 }
 .button:active { transform: translateY(1px); }
 .button:disabled { cursor: not-allowed; opacity: .48; }
+a.button { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.page-heading-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .button-primary { background: var(--brand); color: #fff; }
 .button-primary:hover:not(:disabled) { filter: brightness(1.1); }
 .button-secondary { background: var(--surface-soft); border-color: var(--line); color: var(--ink); }

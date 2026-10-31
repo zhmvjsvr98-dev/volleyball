@@ -70,7 +70,7 @@ const officialRoles = [
   ["lineJudge3", "ラインジャッジ3"],
   ["lineJudge4", "ラインジャッジ4"],
 ];
-const rallyKinds = ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "feint", "error", "other"];
+const rallyKinds = ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "twoAttack", "block", "feint", "error", "other"];
 const rallyOutcomes = ["success", "point", "error", "touch", "effective", "excellent", "good", "other"];
 const builtInRuleProfiles = {
   standard: { id: "standard", name: "標準（6人制・一般）", settings: { matchProfile: "six", category: "一般", division: "男子", bestOf: 5, regularTarget: 25, finalTarget: 15 } },
@@ -3003,7 +3003,7 @@ function getVideoEventKind(event) {
   const kind = event.statPlayKind || event.playKind || event.playType;
   if (kind === "back-attack" || kind === "backAttack") return "backAttack";
   if (["serveReception", "reception", "attackReception"].includes(kind)) return "reception";
-  if (kind === "feint") return "attack";
+  if (["feint", "twoAttack"].includes(kind)) return "attack";
   return ["attack", "block", "serve", "reception"].includes(kind) ? kind : "";
 }
 
@@ -4370,7 +4370,7 @@ function renderRallyEntryForm() {
   });
   const attackZoneField = byId("rally-attack-zone-field");
   const attackZoneSelect = byId("rally-attack-zone");
-  const attackZoneVisible = ["attack", "backAttack"].includes(kindSelect?.value);
+  const attackZoneVisible = ["attack", "backAttack", "twoAttack"].includes(kindSelect?.value);
   if (attackZoneField) attackZoneField.hidden = !attackZoneVisible;
   if (attackZoneSelect && !attackZoneVisible) attackZoneSelect.value = "";
   const courseZoneField = byId("rally-course-zone-field");
@@ -4516,6 +4516,9 @@ function renderQuickRallyEntry() {
     ["backAttack", "success", "バックアタック成功"],
     ["backAttack", "error", "バックアタックミス"],
     ["backAttack", "point", "バックアタック得点"],
+    ["twoAttack", "success", "ツーアタック成功"],
+    ["twoAttack", "error", "ツーアタック失敗"],
+    ["twoAttack", "point", "ツーアタック得点"],
     ["block", "touch", "ブロックタッチ"],
     ["block", "point", "ブロック得点"],
     ["feint", "success", "フェイント成功"],
@@ -4652,7 +4655,7 @@ function recordRallyPlay(playKindOverride, outcomeOverride, teamIdOverride, play
   const note = (isQuickEntry ? "" : byId("rally-note").value)
       .trim()
       .slice(0, 120);
-  const attackZone = !isQuickEntry && ["attack", "backAttack"].includes(playKind)
+  const attackZone = !isQuickEntry && ["attack", "backAttack", "twoAttack"].includes(playKind)
     ? Number(byId("rally-attack-zone").value) || null
     : null;
   const courseZone = !isQuickEntry && ["serve", "reception", "serveReception", "attackReception"].includes(playKind)
@@ -4947,9 +4950,14 @@ function emptyPlayStats() {
   return {
     attack: { attempts: 0, points: 0, errors: 0, blocked: 0 },
     backAttack: { attempts: 0, points: 0, errors: 0, blocked: 0 },
+    twoAttack: { attempts: 0, points: 0, errors: 0, blocked: 0 },
+    feint: { attempts: 0, points: 0, errors: 0, blocked: 0 },
     block: { attempts: 0, points: 0 },
     serve: { attempts: 0, points: 0, errors: 0, effective: 0 },
     reception: { attempts: 0, excellent: 0, good: 0, other: 0 },
+    serveReception: { attempts: 0, excellent: 0, good: 0, errors: 0 },
+    attackReception: { attempts: 0, excellent: 0, good: 0, errors: 0 },
+    set: { attempts: 0, success: 0, errors: 0 },
   };
 }
 
@@ -4958,6 +4966,7 @@ function recordPlayStat(stats, playKind, outcome) {
   if (!category) return;
   category.attempts += 1;
   if (outcome === "point") category.points += 1;
+  if (outcome === "success" && "success" in category) category.success += 1;
   if (outcome === "error" && "errors" in category) category.errors += 1;
   if (outcome === "blocked" && "blocked" in category) category.blocked += 1;
   if (outcome === "effective" && "effective" in category) category.effective += 1;
@@ -5026,6 +5035,8 @@ function getPerformanceStats(team, sets = currentMatch.sets) {
       let playKind;
       let outcome;
       let playerId;
+      let rawPlayKind = null;
+      let rawOutcome = null;
       if (event.type === "score" && event.delta > 0 && !event.correctionSource && event.teamId === team.id
         && !correctedScores.has(event.id) && event.statPlayKind && !linkedScoreEvents.has(event.id)) {
         playKind = event.statPlayKind;
@@ -5037,11 +5048,16 @@ function getPerformanceStats(team, sets = currentMatch.sets) {
         if (["attack", "backAttack"].includes(playKind) && blockedAttackIds.has(event.id)) outcome = "blocked";
         playerId = event.playerId;
       } else if (event.type === "rally-play" && event.teamId === team.id && !correctedRallyEvents.has(event.id)) {
+        rawPlayKind = event.playKind;
+        rawOutcome = event.outcome;
         playKind = getPerformanceKind(event);
         outcome = playKind === "reception"
           ? ["excellent", "good"].includes(event.outcome) ? event.outcome : "other"
           : event.outcome;
         if (playKind === "attack" && blockedAttackIds.has(event.id)) outcome = "blocked";
+        if (["attack", "backAttack", "twoAttack", "feint"].includes(rawPlayKind) && blockedAttackIds.has(event.id)) {
+          rawOutcome = "blocked";
+        }
         playerId = event.playerId;
       } else if (event.type === "serve-fault" && event.teamId === team.id) {
         playKind = "serve";
@@ -5058,6 +5074,14 @@ function getPerformanceStats(team, sets = currentMatch.sets) {
       }
       recordPlayStat(total, playKind, outcome);
       if (players.has(playerId)) recordPlayStat(players.get(playerId), playKind, outcome);
+
+      if (rawPlayKind && rawPlayKind !== playKind) {
+        const normalizedRawOutcome = ["success", "point", "error", "touch", "effective", "excellent", "good", "blocked", "other"].includes(rawOutcome)
+          ? rawOutcome
+          : "other";
+        recordPlayStat(total, rawPlayKind, normalizedRawOutcome);
+        if (players.has(playerId)) recordPlayStat(players.get(playerId), rawPlayKind, normalizedRawOutcome);
+      }
     }
   }
   return { total, players, teamSetsPlayed, playerSetsPlayed };
@@ -5065,7 +5089,7 @@ function getPerformanceStats(team, sets = currentMatch.sets) {
 
 function getPerformanceKind(event) {
   if (["serveReception", "reception", "attackReception"].includes(event.playKind)) return "reception";
-  if (event.playKind === "feint") return "attack";
+  if (["feint", "twoAttack"].includes(event.playKind)) return "attack";
   return event.playKind;
 }
 
@@ -5080,7 +5104,7 @@ function getEffectivePointEvents(set) {
 function getPointSource(event) {
   const kind = event.statPlayKind || event.playType;
   if (["serve"].includes(kind)) return "サーブ";
-  if (["attack", "backAttack", "back-attack", "feint"].includes(kind)) return "アタック";
+  if (["attack", "backAttack", "back-attack", "feint", "twoAttack"].includes(kind)) return "アタック";
   if (kind === "block") return "ブロック";
   if (["opponent-error", "penalty"].includes(kind)) return "相手ミス";
   return "その他";
@@ -5513,40 +5537,37 @@ function formatSetAverage(points, setsPlayed) {
 }
 
 function appendPerformanceStats(container) {
+  const attackCategory = (key, title, withSetAverage = false) => ({
+    key,
+    title,
+    headers: ["選手", "打数", "得点", "失点", "被ブロック", "決定率", "被ブロック率", ...(withSetAverage ? ["セット平均"] : [])],
+    values: (stats, setsPlayed) => [
+      stats[key].attempts,
+      stats[key].points,
+      stats[key].errors,
+      stats[key].blocked,
+      formatPercentage(stats[key].points, stats[key].attempts),
+      formatPercentage(stats[key].blocked, stats[key].attempts),
+      ...(withSetAverage ? [formatSetAverage(stats[key].points, setsPlayed)] : []),
+    ],
+  });
+  const receptionCategory = (key, title) => ({
+    key,
+    title,
+    headers: ["選手", "受数", "成功（優）", "成功（良）", "失敗", "成功率"],
+    values: (stats) => [
+      stats[key].attempts,
+      stats[key].excellent,
+      stats[key].good,
+      stats[key].errors,
+      stats[key].attempts > 0
+        ? `${(((stats[key].excellent * 100) + (stats[key].good * 50))
+          / stats[key].attempts).toFixed(1)}%`
+        : "—",
+    ],
+  });
+  // ラリーの流れ（サーブ→レシーブ→トス→攻撃→ブロック）に沿った表示順
   const categoryDefinitions = [
-    {
-      key: "attack",
-      title: "アタック",
-      headers: ["選手", "打数", "得点", "失点", "被ブロック", "決定率", "被ブロック率", "セット平均"],
-      values: (stats, setsPlayed) => [
-        stats.attack.attempts,
-        stats.attack.points,
-        stats.attack.errors,
-        stats.attack.blocked,
-        formatPercentage(stats.attack.points, stats.attack.attempts),
-        formatPercentage(stats.attack.blocked, stats.attack.attempts),
-        formatSetAverage(stats.attack.points, setsPlayed),
-      ],
-    },
-    {
-      key: "backAttack",
-      title: "バックアタック",
-      headers: ["選手", "打数", "得点", "失点", "被ブロック", "決定率", "被ブロック率"],
-      values: (stats) => [
-        stats.backAttack.attempts,
-        stats.backAttack.points,
-        stats.backAttack.errors,
-        stats.backAttack.blocked,
-        formatPercentage(stats.backAttack.points, stats.backAttack.attempts),
-        formatPercentage(stats.backAttack.blocked, stats.backAttack.attempts),
-      ],
-    },
-    {
-      key: "block",
-      title: "ブロック",
-      headers: ["選手", "得点", "セット平均"],
-      values: (stats, setsPlayed) => [stats.block.points, formatSetAverage(stats.block.points, setsPlayed)],
-    },
     {
       key: "serve",
       title: "サーブ",
@@ -5564,9 +5585,11 @@ function appendPerformanceStats(container) {
           : "—",
       ],
     },
+    receptionCategory("serveReception", "サーブレシーブ"),
+    receptionCategory("attackReception", "アタックレシーブ"),
     {
       key: "reception",
-      title: "サーブレシーブ",
+      title: "レセプション合計",
       headers: ["選手", "受数", "成功（優）", "成功（良）", "成功率"],
       values: (stats) => [
         stats.reception.attempts,
@@ -5577,6 +5600,27 @@ function appendPerformanceStats(container) {
             / stats.reception.attempts).toFixed(1)}%`
           : "—",
       ],
+    },
+    {
+      key: "set",
+      title: "トス",
+      headers: ["選手", "試行", "成功", "失敗", "成功率"],
+      values: (stats) => [
+        stats.set.attempts,
+        stats.set.success,
+        stats.set.errors,
+        formatPercentage(stats.set.success, stats.set.attempts),
+      ],
+    },
+    attackCategory("attack", "アタック", true),
+    attackCategory("backAttack", "バックアタック"),
+    attackCategory("twoAttack", "ツーアタック"),
+    attackCategory("feint", "フェイント"),
+    {
+      key: "block",
+      title: "ブロック",
+      headers: ["選手", "得点", "セット平均"],
+      values: (stats, setsPlayed) => [stats.block.points, formatSetAverage(stats.block.points, setsPlayed)],
     },
   ];
 
@@ -5616,7 +5660,7 @@ function appendPerformanceStats(container) {
 
   const note = document.createElement("p");
   note.className = "stats-note";
-  note.textContent = "決定率＝得点÷打数×100、被ブロック率＝相手ブロック得点に結び付けられた攻撃÷打数、アタック/ブロックセット平均＝得点÷出場セット数、サーブ効果率＝（エース×100＋効果×25－失点×25）÷打数、レシーブ成功率＝（優×100＋良×50）÷受数。被ブロックは同一ラリー内のブロック得点と攻撃記録を対応できた場合のみ数えます。率は小数第1位、セット平均は小数第2位まで表示し、分母が0の場合は「—」を表示します。";
+  note.textContent = "決定率＝得点÷打数×100、被ブロック率＝相手ブロック得点に結び付けられた攻撃÷打数、アタック/ブロックセット平均＝得点÷出場セット数、サーブ効果率＝（エース×100＋効果×25－失点×25）÷打数、レシーブ成功率＝（優×100＋良×50）÷受数。ツーアタック・フェイント・トス・サーブレシーブ・アタックレシーブも個別に集計します。被ブロックは同一ラリー内のブロック得点と攻撃記録を対応できた場合のみ数えます。率は小数第1位、セット平均は小数第2位まで表示し、分母が0の場合は「—」を表示します。";
   container.append(note);
 }
 

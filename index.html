@@ -8,7 +8,7 @@
   <meta name="description" content="オフラインで利用できるバレーボール試合記録アプリ">
   <title>JVA Volleyball Official Electronic Score Sheet</title>
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="stylesheet" href="./style.css?v=69">
+  <link rel="stylesheet" href="./style.css?v=70">
   <script src="./version.js"></script>
   <script type="module" src="./app.js"></script>
 </head>
@@ -90,6 +90,7 @@
           <button id="start-record" class="button button-primary hero-start" type="button">記録を開始</button>
           <p class="home-caption">大会情報とチームを登録して、記録を始めましょう。</p>
           <button class="button button-secondary" data-go="manual" type="button">取扱いマニュアル（PDF）を確認</button>
+          <a class="button button-secondary" href="./rulebook.pdf" target="_blank" rel="noopener">ルールブック（PDF）を開く</a>
           <button class="button button-primary" data-go="setup" type="button">試合設定を始める</button>
           <p class="app-version">バージョン <span id="app-version">—</span></p>
         </div>
@@ -98,7 +99,7 @@
       <section id="integrity-alerts" class="integrity-alerts" aria-live="assertive" hidden></section>
 
       <section class="app-page" data-page-panel="manual" hidden>
-        <div class="page-heading"><div><span class="eyebrow">USER MANUAL</span><h1>取扱いマニュアル</h1><p>画面イメージを見ながら、試合準備・記録・大会の進行管理・帳票保存を確認できます。</p></div><button id="print-manual" class="button button-primary" type="button">マニュアルを印刷 / PDF保存</button></div>
+        <div class="page-heading"><div><span class="eyebrow">USER MANUAL</span><h1>取扱いマニュアル</h1><p>画面イメージを見ながら、試合準備・記録・大会の進行管理・帳票保存を確認できます。</p></div><div class="page-heading-actions"><a class="button button-secondary" href="./rulebook.pdf" target="_blank" rel="noopener">ルールブック（PDF）を開く</a><button id="print-manual" class="button button-primary" type="button">マニュアルを印刷 / PDF保存</button></div></div>
         <article id="manual-document" class="panel content-panel manual-document">
           <header class="manual-cover">
             <span class="eyebrow">JVA VOLLEYBALL OFFICIAL ELECTRONIC SCORE SHEET</span>
@@ -257,7 +258,7 @@
               <li>表示された画面で得点の理由（アタック、サーブ、相手のミスなど）を選び、必要な選手を選んで確定します。</li>
               <li>得点はスコアに反映され、サーバーやセットの状況も更新されます。得点した側が正しいかを毎回確認してください。</li>
               <li>サーブ順も照合する場合は、得点を記録する前に「実際にサーブした選手」を選びます。登録順と異なる場合は、その得点の違反可能性が履歴に残ります。</li>
-              <li>速いラリーでは、試合画面の「ラリー高速入力」でチームと選手を選び、サービスエース、サーブミス、各種レシーブ、トス、アタック、バックアタック、ブロック、フェイントの結果ボタンをタップします。得点・ミスはプレー記録とスコアに反映されます。コースや備考も記録したい場合は、従来の詳細入力を使ってください。</li>
+              <li>速いラリーでは、試合画面の「ラリー高速入力」でチームと選手を選び、サービスエース、サーブミス、各種レシーブ、トス、アタック、バックアタック、ツーアタック、ブロック、フェイントの結果ボタンをタップします。得点・ミスはプレー記録とスコアに反映されます。コースや備考も記録したい場合は、従来の詳細入力を使ってください。</li>
               <li>入力を間違えたときは、次の記録をする前に<strong>「直前の記録を取り消す」</strong>を押します。直前の得点記録を取り消せます。</li>
             </ol>
             <p class="manual-tip"><b>9人制</b> サーブを失敗したら試合画面の「サーブ失敗を記録」を押します。1回目は打ち直し、2回目の失敗で相手に1点が入ります。</p>
@@ -828,6 +829,8 @@
                     <button type="button" class="mini-select-button" data-value="set">トス</button>
                     <button type="button" class="mini-select-button" data-value="attack">アタック</button>
                     <button type="button" class="mini-select-button" data-value="backAttack">バック</button>
+                    <button type="button" class="mini-select-button" data-value="twoAttack">ツーアタック</button>
+                    <button type="button" class="mini-select-button" data-value="feint">フェイント</button>
                     <button type="button" class="mini-select-button" data-value="block">ブロック</button>
                     <button type="button" class="mini-select-button" data-value="error">ミス</button>
                     <button type="button" class="mini-select-button" data-value="other">その他</button>
@@ -839,6 +842,8 @@
                     <option value="set">トス</option>
                     <option value="attack">アタック</option>
                     <option value="backAttack">バック</option>
+                    <option value="twoAttack">ツーアタック</option>
+                    <option value="feint">フェイント</option>
                     <option value="block">ブロック</option>
                     <option value="error">ミス</option>
                     <option value="other">その他</option>

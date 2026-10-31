@@ -373,11 +373,11 @@ function validateEvent(event, validTeamIds) {
       && isText(event.note || "", 120);
   }
   if (event.type === "rally-play") {
-    return ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "block", "feint", "error", "other"].includes(event.playKind)
+    return ["serve", "reception", "serveReception", "attackReception", "set", "attack", "backAttack", "twoAttack", "block", "feint", "error", "other"].includes(event.playKind)
       && ["success", "point", "error", "touch", "effective", "excellent", "good", "other"].includes(event.outcome)
       && (event.playerId === null || isText(event.playerId, 80))
       && (event.attackZone === undefined
-        || ["attack", "backAttack"].includes(event.playKind) && Number.isInteger(event.attackZone) && event.attackZone >= 1 && event.attackZone <= 6)
+        || ["attack", "backAttack", "twoAttack"].includes(event.playKind) && Number.isInteger(event.attackZone) && event.attackZone >= 1 && event.attackZone <= 6)
       && (event.courseZone === undefined
         || ["serve", "reception", "serveReception", "attackReception"].includes(event.playKind)
           && Number.isInteger(event.courseZone) && event.courseZone >= 1 && event.courseZone <= 6)

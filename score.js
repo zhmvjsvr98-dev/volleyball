@@ -236,7 +236,7 @@ export function getEventDescription(match, event) {
     const kinds = {
       serve: "サーブ", reception: "サーブレシーブ", serveReception: "サーブレシーブ",
       attackReception: "アタックレシーブ", set: "トス",
-      attack: "アタック", backAttack: "バックアタック", block: "ブロック", feint: "フェイント",
+      attack: "アタック", backAttack: "バックアタック", twoAttack: "ツーアタック", block: "ブロック", feint: "フェイント",
       error: "ミス", other: "その他",
     };
     const outcomes = {
